@@ -1,18 +1,16 @@
 import { Avatar, Box, Button, Container, TextField, Typography } from "@mui/material";
 import { blue } from "@mui/material/colors";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import * as signalR from "@microsoft/signalr";
 import { useEffect, useState } from "react";
-import { postUser } from "../api";
+import { GetIsSessionActive, PostUser } from "../api";
 
 export default function Home() {
 	const navigate = useNavigate();
 
 	const hubUrl = process.env.REACT_APP_HUB_URL;
-	const apiUrl = process.env.REACT_APP_API_URL;
 
-	const [sessionExists, setSessionExists] = useState(true);
+	const [isSessionActive, setIsSessionActive] = useState(true);
 	const [username, setUsername] = useState('');
 	const [error, setError] = useState(false);
 
@@ -20,13 +18,22 @@ export default function Home() {
 		// Initialize SignalR connection
 		const signalRConnection = initializeSignalR();
 
-		checkActiveSession();
+		const fetchData = async () => {
+			try {
+				const response = await GetIsSessionActive();
+				setIsSessionActive(response);
+			} catch (error) {
+				// Handle errors here
+				console.log(error);
+			}
+		};
+		fetchData();
 
-        // Clean up the connection when the component unmounts
-        return () => {
-            signalRConnection.stop();
-        };
-    }, []);
+		// Clean up the connection when the component unmounts
+		return () => {
+			signalRConnection.stop();
+		};
+	}, []);
 
 	// Function to initialize SignalR connection
 	const initializeSignalR = () => {
@@ -36,29 +43,19 @@ export default function Home() {
 
 		connection.start()
 			.then(() => {
-                // SignalR connection established
+				// SignalR connection established
 			})
 			.catch((error) => {
 				console.error("SignalR connection error: " + error);
 			});
 
 		connection.on("ReceiveSessionExists", (activeSessionExists) => {
-			setSessionExists(activeSessionExists);
+			console.log(activeSessionExists);
+			setIsSessionActive(activeSessionExists);
 		});
 
 		return connection; // Return the connection for cleanup
 	};
-
-	const checkActiveSession = async () => {
-		const endpoint = apiUrl + '/session/active';
-
-		try {
-			const response = await axios.get(endpoint);
-			setSessionExists(response.data);
-		} catch (error) {
-			console.log(error);
-		}
-	}
 
 	const handleChange = (e) => {
 		const inputValue = e.target.value;
@@ -69,8 +66,11 @@ export default function Home() {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 
-		if (error) return;
-		await postUser(username.trim());
+		if (username.trim() === '') {
+			setError(true);
+			return;
+		}
+		await PostUser(username.trim());
 
 		// Only navigate after the POST request is complete
 		navigate(`/voting?username=${username}`);
@@ -80,10 +80,10 @@ export default function Home() {
 		<Container component="main" maxWidth="xs">
 			<Box
 				sx={{
-				marginTop: 8,
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
+					marginTop: 8,
+					display: 'flex',
+					flexDirection: 'column',
+					alignItems: 'center',
 				}}
 			>
 				<Avatar sx={{ m: 2, bgcolor: blue[700] }} />
@@ -109,7 +109,7 @@ export default function Home() {
 						variant="contained"
 						sx={{ mt: 1 }}
 					>
-						{sessionExists ? 'Join' : 'Create'}
+						{isSessionActive ? 'Join' : 'Create'}
 					</Button>
 				</Box>
 			</Box>

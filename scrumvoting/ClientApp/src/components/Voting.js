@@ -7,14 +7,15 @@ import axios from "axios";
 import ConfirmDialog from "./ConfirmDialog";
 import ReportIcon from '@mui/icons-material/Report';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { EndSession, GetRecords, GetToggleShow, GetUser, ResetUserPoints, UpdateToggleShow, UpdateUser } from "../api";
 
 const useStyles = makeStyles(theme => ({
 	table: {
 		// Make the header and footer sticky
 		'& thead, & tfoot': {
-            position: 'sticky',
-            zIndex: 1
-        },
+			position: 'sticky',
+			zIndex: 1
+		},
 		'& thead': {
 			top: 0, // Add this to stick the header to the top
 			backgroundColor: 'rgba(255, 255, 255, 1)', // Make the background fully opaque
@@ -42,7 +43,6 @@ export default function Voting() {
 	const navigate = useNavigate();
 
 	const hubUrl = process.env.REACT_APP_HUB_URL;
-	const apiUrl = process.env.REACT_APP_API_URL;
 
 	const location = useLocation();
 	const searchParams = new URLSearchParams(location.search);
@@ -51,7 +51,7 @@ export default function Voting() {
 	const [records, setRecords] = useState([]);
 	const [user, setUser] = useState({});
 	const [toggleShow, setToggleShow] = useState(false);
-	const [confirmDialog, setConfirmDialog] = useState({ 
+	const [confirmDialog, setConfirmDialog] = useState({
 		isOpen: false, title: '', subtitle: '', color: '', icon: null
 	})
 
@@ -59,15 +59,31 @@ export default function Voting() {
 		// Initialize SignalR connection
 		const signalRConnection = initializeSignalR();
 
-		checkToggleShow();
-		getUser(username);
-		getRecords();
+		const fetchData = async () => {
+			try {
+				const [showResponse, userResponse, recordsResponse] = await Promise.all([
+					GetToggleShow(),
+					GetUser(username),
+					GetRecords()
+					// Add other async functions here if needed
+				]);
 
-        // Clean up the connection when the component unmounts
-        return () => {
-            signalRConnection.stop();
-        };
-    }, []);
+				// Access the responses here, for example:
+				setToggleShow(showResponse);
+				setUser(userResponse);
+				setRecords(recordsResponse);
+			} catch (error) {
+				// Handle errors here
+				console.log(error);
+			}
+		};
+		fetchData();
+
+		// Clean up the connection when the component unmounts
+		return () => {
+			signalRConnection.stop();
+		};
+	}, []);
 
 	// Function to initialize SignalR connection
 	const initializeSignalR = () => {
@@ -88,8 +104,8 @@ export default function Voting() {
 		});
 
 		connection.on('ReceiveToggleShow', (toggleShowState) => {
-            setToggleShow(toggleShowState);
-        });
+			setToggleShow(toggleShowState);
+		});
 
 		connection.on("ReceiveSessionRestarted", (activeUsers) => {
 			setRecords(activeUsers);
@@ -108,90 +124,6 @@ export default function Voting() {
 		return connection; // Return the connection for cleanup
 	};
 
-	const checkToggleShow = async () => {
-		const endpoint = apiUrl + '/session/toggleShow';
-
-		try {
-			const response = await axios.get(endpoint);
-			setToggleShow(response.data);
-		} catch (error) {
-			console.log(error);
-		}
-	}
-
-	const getUser = (username) => {
-		axios.get(`${apiUrl}/session/users/${username}`)
-			.then((response) => {
-				const user = response.data;
-				if (user)
-					setUser(user);
-				else
-					navigate('/');
-
-			})
-			.catch((error) => {
-				console.log(error);
-			});
-	};
-
-	const getRecords = () => {
-		axios.get(`${apiUrl}/session/users`)
-			.then((response) => {
-				setRecords(response.data);
-			})
-			.catch((error) => {
-				console.log(error);
-			});
-	};
-
-	const updateUser = (user) => {
-		axios.post(`${apiUrl}/session/users/${username}`, null, {
-			params: {
-				points: user.points
-			}
-		})
-			.then((response) => {
-				// User is updated
-			})
-			.catch((error) => {
-				console.log(error);
-			});
-	};
-
-	const updateToggleShow = (newToggleShow) => {
-		axios.post(`${apiUrl}/session/toggleShow`, null, {
-			params: {
-				toggleShow: newToggleShow
-			}
-		})
-			.then((response) => {
-				// Toggle show is updated
-			})
-			.catch((error) => {
-				console.log(error);
-			});
-	}
-
-	const resetUserPoints = () => {
-		axios.post(`${apiUrl}/session/users/reset`)
-			.then((response) => {
-				// Handle the successful response as needed
-			})
-			.catch((error) => {
-				console.log(error);
-			});
-	}
-
-	const endSession = () => {
-		axios.delete(`${apiUrl}/session/users`)
-			.then((response) => {
-				// Handle the successful response as needed
-			})
-			.catch((error) => {
-				console.log(error);
-			});
-	}
-
 	const handleChange = (event) => {
 		setUser({
 			...user,
@@ -200,7 +132,7 @@ export default function Voting() {
 	};
 
 	const handleVote = () => {
-		updateUser(user);
+		UpdateUser(user);
 		setUser({
 			...user,
 			hasVoted: true
@@ -209,9 +141,9 @@ export default function Voting() {
 
 	const toggleShowPoints = () => {
 		const newToggleShow = !toggleShow;
-        setToggleShow(newToggleShow);
+		setToggleShow(newToggleShow);
 
-		updateToggleShow(newToggleShow);
+		UpdateToggleShow(newToggleShow);
 	}
 
 	const handleRestart = () => {
@@ -221,7 +153,7 @@ export default function Voting() {
 			isOpen: true,
 			color: '#1976D2',
 			icon: <RestartAltIcon />,
-			onConfirm: () => resetUserPoints()
+			onConfirm: () => ResetUserPoints()
 		})
 	};
 
@@ -232,17 +164,17 @@ export default function Voting() {
 			isOpen: true,
 			color: '#d32f2f',
 			icon: <ReportIcon />,
-			onConfirm: () => endSession()
+			onConfirm: () => EndSession()
 		})
 	};
 
 	const calculateAveragePoints = (records) => {
 		if (records.length === 0) {
-		  return 0; // Default to 0 if there are no records
+			return 0; // Default to 0 if there are no records
 		}
-	
+
 		const totalPoints = records.reduce((acc, user) => acc + user.points, 0);
-		const average =  totalPoints / records.length;
+		const average = totalPoints / records.length;
 
 		// Round the average to two decimal places
 		return parseFloat(average.toFixed(2));
@@ -269,9 +201,9 @@ export default function Voting() {
 					</Select>
 				</FormControl>
 
-				<Button 
-					variant="contained" 
-					color="primary" 
+				<Button
+					variant="contained"
+					color="primary"
 					onClick={handleVote}
 					disabled={user.hasVoted}
 				>
@@ -299,13 +231,13 @@ export default function Voting() {
 					</TableBody>
 					<TableFooter>
 						<TableRow>
-						<TableCell colSpan={2} className={classes.footerCell}>
-							Average
-						</TableCell>
-						<TableCell>
-							{/* Calculate and display the average points here */}
-							{toggleShow && calculateAveragePoints(records)}
-						</TableCell>
+							<TableCell colSpan={2} className={classes.footerCell}>
+								Average
+							</TableCell>
+							<TableCell>
+								{/* Calculate and display the average points here */}
+								{toggleShow && calculateAveragePoints(records)}
+							</TableCell>
 						</TableRow>
 					</TableFooter>
 				</Table>
@@ -344,7 +276,7 @@ export default function Voting() {
 				</>
 			)}
 
-			<ConfirmDialog 
+			<ConfirmDialog
 				confirmDialog={confirmDialog}
 				setConfirmDialog={setConfirmDialog}
 			/>
