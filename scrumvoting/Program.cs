@@ -6,8 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton<List<User>>();
-builder.Services.AddSingleton<ActiveSession>(new ActiveSession { Exists = false });
+builder.Services.AddSingleton<Session>();
 builder.Services.AddSignalR();
 
 var app = builder.Build();

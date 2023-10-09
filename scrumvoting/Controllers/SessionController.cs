@@ -9,22 +9,38 @@ namespace scrumvoting.Controllers
     {
         private readonly IHubContext<ActiveUsersHub> _hubContext;
 
-        // Inject the activeUsers list as a singleton service
-        private List<User> activeUsers;
-        private ActiveSession _activeSession;
+        // Inject the Session object as a singleton service
+        private Session _session;
 
-        public SessionController(IHubContext<ActiveUsersHub> hubContext, List<User> activeUsers, ActiveSession activeSession)
+        public SessionController(IHubContext<ActiveUsersHub> hubContext, Session session)
         {
             _hubContext = hubContext;
-            this.activeUsers = activeUsers;
-            _activeSession = activeSession;
+            _session = session;
         }
 
         [HttpGet("active")]
         public IActionResult CheckActiveSession()
         {
             // Return the boolean value indicating whether an active session exists
-            return Ok(_activeSession.Exists);
+            return Ok(_session.IsActive);
+        }
+
+        [HttpGet("toggleShow")]
+        public IActionResult CheckToggleShow()
+        {
+            // Return the boolean value indicating whether show points is toggled on
+            return Ok(_session.ToggleShow);
+        }
+
+        [HttpPost("toggleShow")]
+        public IActionResult UpdateToggleShow(bool toggleShow)
+        {
+            _session.ToggleShow = toggleShow;
+
+            // Notify all clients about the updated toggls show value
+            _hubContext.Clients.All.SendAsync("ReceiveToggleShow", toggleShow);
+
+            return Ok("Toggle show updated");
         }
 
         [HttpPost("users")]
@@ -33,7 +49,7 @@ namespace scrumvoting.Controllers
             User user;
 
             // If no active session exists, the user creates a new session and becomes the admin
-            if (!_activeSession.Exists)
+            if (!_session.IsActive)
             {
                 user = new User
                 {
@@ -43,9 +59,9 @@ namespace scrumvoting.Controllers
                 };
 
                 // Set the flag to indicate an active session
-                _activeSession.Exists = true;
+                _session.IsActive = true;
 
-                _hubContext.Clients.All.SendAsync("ReceiveActiveSessionExists", _activeSession.Exists);
+                _hubContext.Clients.All.SendAsync("ReceiveSessionExists", _session.IsActive);
             }
             // If an active session exists, the user joins as a regular participant
             else
@@ -57,8 +73,8 @@ namespace scrumvoting.Controllers
                 };
             }
 
-            activeUsers.Add(user);
-            _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", activeUsers);
+            _session.ActiveUsers.Add(user);
+            _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
 
             return Ok(user);
         }
@@ -67,10 +83,10 @@ namespace scrumvoting.Controllers
         public IActionResult LeaveSession(string username)
         {
             // Find and remove the user from the list of active users
-            var user = activeUsers.FirstOrDefault(user => user.Name == username);
+            var user = _session.ActiveUsers.FirstOrDefault(user => user.Name == username);
             if (user != null)
             {
-                activeUsers.Remove(user);
+                _session.ActiveUsers.Remove(user);
 
                 return Ok(user);
             }
@@ -78,19 +94,35 @@ namespace scrumvoting.Controllers
             return NotFound();
         }
 
+        [HttpDelete("users")]
+        public IActionResult EndSession()
+        {
+            // Clear the list of active users to delete all users
+            _session.ActiveUsers.Clear();
+
+            // Set the flag to indicate an inactive session
+            _session.IsActive = false;
+
+            // Notify all clients that the session has ended
+            _hubContext.Clients.All.SendAsync("ReceiveSessionExists", _session.IsActive);
+
+
+            return Ok("Session has ended");
+        }
+
         [HttpGet("users")]
         public IActionResult GetUsers()
         {
             // Return the list of active users in the session
-            return Ok(activeUsers);
+            return Ok(_session.ActiveUsers);
         }
 
         [HttpGet("users/{username}")]
         public IActionResult GetUserByUsername(string username)
         {
-            var users = activeUsers;
+            var users = _session.ActiveUsers;
             // Find the user by username
-            var user = activeUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
+            var user = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
 
             if (user != null)
             {
@@ -105,20 +137,47 @@ namespace scrumvoting.Controllers
         public IActionResult UpdateUser(string username, int points)
         {
             // Find the user by username
-            var user = activeUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
+            var user = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
 
             if (user != null)
             {
-                // Update the user's points
-                user.Points = points;
+                // Check if the user has already voted
+                if (!user.HasVoted)
+                {
+                    // Update the user's points
+                    user.Points = points;
 
-                // Send the updated active users to all clients
-                _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", activeUsers);
+                    // Mark the user as voted
+                    user.HasVoted = true;
 
-                return Ok(user);
+                    // Send the updated active users to all clients
+                    _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
+
+                    return Ok(user);
+                }
+                else
+                {
+                    // Handle the case where the user has already voted
+                    return BadRequest("User has already voted.");
+                }
             }
 
             return NotFound();
+        }
+
+        [HttpPost("users/reset")]
+        public IActionResult ResetUserPoints()
+        {
+            foreach (var user in _session.ActiveUsers)
+            {
+                user.Points = 0; // Reset each user's points to 0
+                user.HasVoted = false;
+            }
+
+            // Send the updated active users to all clients
+            _hubContext.Clients.All.SendAsync("ReceiveSessionRestarted", _session.ActiveUsers);
+
+            return Ok("Session restarted");
         }
 
     }

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import * as signalR from "@microsoft/signalr";
 import { useEffect, useState } from "react";
+import { postUser } from "../api";
 
 export default function Home() {
 	const navigate = useNavigate();
@@ -12,6 +13,8 @@ export default function Home() {
 	const apiUrl = process.env.REACT_APP_API_URL;
 
 	const [sessionExists, setSessionExists] = useState(true);
+	const [username, setUsername] = useState('');
+	const [error, setError] = useState(false);
 
 	useEffect(() => {
 		// Initialize SignalR connection
@@ -39,7 +42,7 @@ export default function Home() {
 				console.error("SignalR connection error: " + error);
 			});
 
-		connection.on("ReceiveActiveSessionExists", (activeSessionExists) => {
+		connection.on("ReceiveSessionExists", (activeSessionExists) => {
 			setSessionExists(activeSessionExists);
 		});
 
@@ -57,25 +60,20 @@ export default function Home() {
 		}
 	}
 
-	const postUser = (username) => {
-		const endpoint = apiUrl + '/session/users?username=' + username;
-
-		axios.post(endpoint, username)
-			.then((response) => {
-				console.log(response);
-			})
-			.catch((error) => {
-				console.log(error);
-			});
+	const handleChange = (e) => {
+		const inputValue = e.target.value;
+		setUsername(inputValue);
+		setError(inputValue.trim() === '');
 	}
 
-	const handleSubmit = (e) => {
-		// Get the login details from form fields
-		const username = e.target.username.value;
-		const params = `?username=${username}`
+	const handleSubmit = async (e) => {
+		e.preventDefault();
 
-		postUser(username);
-		navigate(`/voting${params}`);
+		if (error) return;
+		await postUser(username.trim());
+
+		// Only navigate after the POST request is complete
+		navigate(`/voting?username=${username}`);
 	}
 
 	return (
@@ -100,12 +98,16 @@ export default function Home() {
 						name="username"
 						autoComplete="no"
 						autoFocus
+						value={username}
+						onChange={handleChange}
+						error={error}
+						helperText={error && 'Username is required'}
 					/>
 					<Button
 						type="submit"
 						fullWidth
 						variant="contained"
-						sx={{ mt: 3, mb: 2 }}
+						sx={{ mt: 1 }}
 					>
 						{sessionExists ? 'Join' : 'Create'}
 					</Button>
