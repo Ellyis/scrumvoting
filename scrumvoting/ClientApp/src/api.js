@@ -104,7 +104,8 @@ export const PostUser = async (username) => {
     const endpoint = `${apiUrl}/session/users?username=${username}`;
 
     try {
-        await axios.post(endpoint, username)
+        const response = await axios.post(endpoint, username);
+        return response.data;
     } catch (error) {
         console.log(error);
     }

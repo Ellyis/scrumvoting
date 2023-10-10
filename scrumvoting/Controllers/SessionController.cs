@@ -46,6 +46,15 @@ namespace scrumvoting.Controllers
         [HttpPost("users")]
         public IActionResult CreateOrJoinSession(string username)
         {
+            // Check if a user with the provided username already exists
+            var existingUser = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
+
+            if (existingUser != null)
+            {
+                // Username already exists, return a response indicating that the username is already in use
+                return Ok();
+            }
+
             User user;
 
             // If no active session exists, the user creates a new session and becomes the admin

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import * as signalR from "@microsoft/signalr";
 import { useEffect, useState } from "react";
 import { GetIsSessionActive, PostUser } from "../api";
+import Notification from "./Notification";
 
 export default function Home() {
 	const navigate = useNavigate();
@@ -13,6 +14,10 @@ export default function Home() {
 	const [isSessionActive, setIsSessionActive] = useState(true);
 	const [username, setUsername] = useState('');
 	const [error, setError] = useState(false);
+	const [helperText, setHelperText] = useState('');
+	const [notify, setNotify] = useState({
+		isOpen: false, type: '', message: ''
+	})
 
 	useEffect(() => {
 		// Initialize SignalR connection
@@ -60,7 +65,12 @@ export default function Home() {
 	const handleChange = (e) => {
 		const inputValue = e.target.value;
 		setUsername(inputValue);
-		setError(inputValue.trim() === '');
+		if (inputValue.trim() === '') {
+			setError(true);
+			setHelperText('Username is required');
+		} else {
+			setError(false);
+		}
 	}
 
 	const handleSubmit = async (e) => {
@@ -68,12 +78,18 @@ export default function Home() {
 
 		if (username.trim() === '') {
 			setError(true);
+			setHelperText('Username is required');
 			return;
 		}
-		await PostUser(username.trim());
-
-		// Only navigate after the POST request is complete
-		navigate(`/voting?username=${username}`);
+		const user = await PostUser(username.trim());
+		if (user) {
+			// Only navigate after the POST request is complete
+			navigate(`/voting?username=${username}`);
+		} else {
+			setError(true);
+			setHelperText('Username is already taken');
+		}
+		
 	}
 
 	return (
@@ -101,7 +117,7 @@ export default function Home() {
 						value={username}
 						onChange={handleChange}
 						error={error}
-						helperText={error && 'Username is required'}
+						helperText={error && helperText}
 					/>
 					<Button
 						type="submit"
@@ -113,6 +129,11 @@ export default function Home() {
 					</Button>
 				</Box>
 			</Box>
+
+			<Notification 
+				notify={notify}
+				setNotify={setNotify}
+			/>
 		</Container>
 	);
 }

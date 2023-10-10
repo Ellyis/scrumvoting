@@ -9,20 +9,20 @@ import { createTheme } from '@mui/material';
 const theme = createTheme();
 
 export default class App extends Component {
-  static displayName = App.name;
+	static displayName = App.name;
 
-  render() {
-    return (
-      <ThemeProvider theme={theme}>
-        <Layout>
-          <Routes>
-            {AppRoutes.map((route, index) => {
-              const { element, ...rest } = route;
-              return <Route key={index} {...rest} element={element} />;
-            })}
-          </Routes>
-        </Layout>
-      </ThemeProvider>
-    );
-  }
+	render() {
+		return (
+		<ThemeProvider theme={theme}>
+			<Layout>
+			<Routes>
+				{AppRoutes.map((route, index) => {
+				const { element, ...rest } = route;
+				return <Route key={index} {...rest} element={element} />;
+				})}
+			</Routes>
+			</Layout>
+		</ThemeProvider>
+		);
+	}
 }

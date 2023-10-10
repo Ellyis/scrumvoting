@@ -1,13 +1,17 @@
-import { Box, Button, FormControl, InputLabel, MenuItem, Select, Table, TableBody, TableCell, TableFooter, TableHead, TableRow } from "@mui/material"
+import { Box, Button, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Toolbar, Typography } from "@mui/material"
 import { makeStyles } from "@mui/styles";
 import { useLocation, useNavigate } from "react-router-dom";
 import * as signalR from "@microsoft/signalr";
 import { useEffect, useState } from "react";
-import axios from "axios";
 import ConfirmDialog from "./ConfirmDialog";
 import ReportIcon from '@mui/icons-material/Report';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { EndSession, GetRecords, GetToggleShow, GetUser, ResetUserPoints, UpdateToggleShow, UpdateUser } from "../api";
+import Notification from "./Notification";
+import RefreshIcon from '@mui/icons-material/Refresh';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
 const useStyles = makeStyles(theme => ({
 	table: {
@@ -24,18 +28,33 @@ const useStyles = makeStyles(theme => ({
 			bottom: 0, // Add this to stick the footer to the bottom
 			backgroundColor: 'rgba(255, 255, 255, 1)', // Make the background fully opaque
 		},
+		'& tr td': {
+			fontSize: '1rem',
+			padding: '12px 16px'
+		},
 		'& thead th': {
-			fontWeight: '600',
+			fontWeight: '700',
+			fontSize: '1rem',
 			color: '#333996',
 			backgroundColor: '#3c44b126',
 		},
 		'& tfoot td': {
 			fontWeight: '500',
-			fontSize: '1rem',
+			fontSize: '1.2rem',
 			color: '#333996',
-			backgroundColor: '#3c44b126'
+			backgroundColor: '#3c44b126',
+			padding: '18px'
 		}
-	}
+	},
+	votedCell: {
+		textAlign: 'center',
+		width: '70%',
+		color: 'white',
+		padding: '0.5em 0',
+		borderRadius: '2em',
+		fontWeight: 'bolder',
+		fontSize: '0.95rem'
+	},
 }))
 
 export default function Voting() {
@@ -51,6 +70,9 @@ export default function Voting() {
 	const [records, setRecords] = useState([]);
 	const [user, setUser] = useState({});
 	const [toggleShow, setToggleShow] = useState(false);
+	const [notify, setNotify] = useState({
+		isOpen: false, type: '', message: ''
+	})
 	const [confirmDialog, setConfirmDialog] = useState({
 		isOpen: false, title: '', subtitle: '', color: '', icon: null
 	})
@@ -61,19 +83,20 @@ export default function Voting() {
 
 		const fetchData = async () => {
 			try {
-				const [showResponse, userResponse, recordsResponse] = await Promise.all([
+				const [showResponse, recordsResponse, userResponse] = await Promise.all([
 					GetToggleShow(),
-					GetUser(username),
-					GetRecords()
-					// Add other async functions here if needed
+					GetRecords(),
+					GetUser(username)
 				]);
-
-				// Access the responses here, for example:
+				// Access the responses here
 				setToggleShow(showResponse);
-				setUser(userResponse);
 				setRecords(recordsResponse);
+				if (userResponse) {
+					setUser(userResponse);
+				} else {
+					navigate('/')
+				}
 			} catch (error) {
-				// Handle errors here
 				console.log(error);
 			}
 		};
@@ -113,30 +136,43 @@ export default function Voting() {
 				...prevUser,
 				hasVoted: false
 			}))
+			setNotify({
+				isOpen: true,
+				type: 'warning',
+				message: 'The session has been reset'
+			})
 		});
 
 		connection.on("ReceiveSessionExists", (sessionExists) => {
 			// Redirect users back to the home page if session has ended
-			if (sessionExists === false)
+			if (sessionExists === false) {
 				navigate('/');
+			}
 		});
 
 		return connection; // Return the connection for cleanup
 	};
 
 	const handleChange = (event) => {
-		setUser({
-			...user,
+		setUser(prev =>({
+			...prev,
 			points: event.target.value
-		});
+		}));
 	};
 
 	const handleVote = () => {
-		UpdateUser(user);
-		setUser({
-			...user,
+		setUser(prev => ({
+			...prev,
 			hasVoted: true
-		});
+		}));
+
+		if (UpdateUser(user)) {
+			setNotify({
+				isOpen: true,
+				type: 'success',
+				message: 'Your vote has been recorded'
+			})
+		}
 	}
 
 	const toggleShowPoints = () => {
@@ -146,13 +182,13 @@ export default function Voting() {
 		UpdateToggleShow(newToggleShow);
 	}
 
-	const handleRestart = () => {
+	const handleReset = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to restart this session?',
 			subtitle: "All users' points will be reset.",
 			isOpen: true,
 			color: '#1976D2',
-			icon: <RestartAltIcon />,
+			icon: <RefreshIcon />,
 			onConfirm: () => ResetUserPoints()
 		})
 	};
@@ -182,7 +218,7 @@ export default function Voting() {
 
 	return (
 		<>
-			<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, m: 2 }}>
+			<Box sx={{ display: 'flex', justifyContent: 'center', m: 2 }}>
 				<FormControl sx={{ width: '150px' }}>
 					<InputLabel>Story Points</InputLabel>
 					<Select
@@ -200,81 +236,108 @@ export default function Voting() {
 						<MenuItem value={21}>21</MenuItem>
 					</Select>
 				</FormControl>
-
-				<Button
-					variant="contained"
-					color="primary"
-					onClick={handleVote}
-					disabled={user.hasVoted}
-				>
-					Vote
-				</Button>
 			</Box>
 
-			<Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
-				<Table className={classes.table}>
-					<TableHead>
-						<TableRow>
-							<TableCell>No.</TableCell>
-							<TableCell>Name</TableCell>
-							<TableCell>Story Points</TableCell>
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						{records.map((user, index) => (
-							<TableRow key={index}>
-								<TableCell>{index + 1}</TableCell>
-								<TableCell>{user.name}</TableCell>
-								{toggleShow && <TableCell>{user.points}</TableCell>}
-							</TableRow>
-						))}
-					</TableBody>
-					<TableFooter>
-						<TableRow>
-							<TableCell colSpan={2} className={classes.footerCell}>
-								Average
-							</TableCell>
-							<TableCell>
-								{/* Calculate and display the average points here */}
-								{toggleShow && calculateAveragePoints(records)}
-							</TableCell>
-						</TableRow>
-					</TableFooter>
-				</Table>
+			<Box sx={{display: 'flex', justifyContent: 'center'}}>
+				<Paper elevation={3} sx={{ width: '80%' }}>
+					<Toolbar sx={{ justifyContent: 'space-between' }}>
+						<Typography variant="h6" component="div">Voting List</Typography>
+						{user.isAdmin && (
+							<Box style={{ display: 'flex', gap: '1rem' }}>
+								<Button
+									variant="outlined"
+									startIcon={<RefreshIcon />}
+									onClick={handleReset}
+								>
+									Reset Session
+								</Button>
+								<Button 
+									variant="contained"
+									color="success"
+									startIcon={<AddCircleOutlineIcon />}
+									onClick={handleVote}
+									disabled={user.hasVoted}
+								>
+									Cast Vote
+								</Button>
+							</Box>
+						)}
+						
+					</Toolbar>
+
+					<Box sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
+						<Table className={classes.table}>
+							<TableHead>
+								<TableRow>
+									<TableCell>No.</TableCell>
+									<TableCell>Name</TableCell>
+									<TableCell align="center">Status</TableCell>
+									<TableCell width="30%">
+										Story Points &nbsp;
+										{user.isAdmin && (
+											<IconButton style={{ padding: '0', color: '#333996' }} onClick={toggleShowPoints}>
+											{toggleShow ? <VisibilityIcon /> : <VisibilityOffIcon />}
+										</IconButton>
+										)}
+									</TableCell>
+								</TableRow>
+							</TableHead>
+							<TableBody>
+								{records.map((user, index) => (
+									<TableRow key={index}>
+										<TableCell>{index + 1}</TableCell>
+										<TableCell>{user.name}</TableCell>
+										<TableCell style={{ display: 'flex', justifyContent: 'center' }}>
+											<div className={classes.votedCell} style={{ backgroundColor: user.hasVoted ? 'green' : 'orange' }}>
+												{user.hasVoted ? 'Voted' : 'Not Voted'}
+											</div>
+										</TableCell>
+										<TableCell>{toggleShow ? user.points : '*'}</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+							<TableFooter>
+								<TableRow>
+									<TableCell colSpan={3} className={classes.footerCell}>
+										Average
+									</TableCell>
+									<TableCell>
+										{/* Calculate and display the average points here */}
+										{toggleShow ? calculateAveragePoints(records) : '*'}
+									</TableCell>
+								</TableRow>
+							</TableFooter>
+						</Table>
+					</Box>
+				</Paper>
 			</Box>
 
 			{user.isAdmin && (
-				<>
-					<Button
-						type="submit"
-						fullWidth
-						variant="contained"
-						sx={{ mt: 3, mb: 2 }}
-						onClick={toggleShowPoints}
-					>
-						{toggleShow ? 'Hide Points' : 'Show Points'}
-					</Button>
-					<Button
-						type="button"
-						fullWidth
-						variant="contained"
-						sx={{ mt: 1, mb: 1 }}
-						onClick={handleRestart}
-					>
-						Restart Session
-					</Button>
-					<Button
-						type="button"
-						fullWidth
-						variant="contained"
-						color="error"
-						sx={{ mt: 1, mb: 2 }}
-						onClick={handleEndSession}
-					>
-						End Session
-					</Button>
-				</>
+				<Box sx={{display: 'flex', justifyContent: 'center'}}>
+					<Box style={{ width: '80%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', margin: '1rem' }}>
+						<Button 
+							variant="outlined"
+							color="error"
+							startIcon={<ExitToAppIcon />}
+							onClick={handleEndSession}
+						>
+							End Session
+						</Button>
+						<Button
+							variant="outlined"
+							startIcon={<RefreshIcon />}
+							onClick={handleReset}
+						>
+							Reset Session
+						</Button>
+					</Box>
+				</Box>
 			)}
+
+			<Notification 
+				notify={notify}
+				setNotify={setNotify}
+			/>
 
 			<ConfirmDialog
 				confirmDialog={confirmDialog}
