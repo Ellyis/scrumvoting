@@ -31,15 +31,6 @@ export default function Home({ signalRConnection }) {
 		signalRConnection.on("ReceiveSessionExists", (activeSessionExists) => {
 			setIsSessionActive(activeSessionExists);
 		});
-		// signalRConnection.on("ReceiveAdminConnection", (adminConnectionId, username) => {
-		// 	signalRConnection.invoke("SetAdminConnection", adminConnectionId, username);
-		// });
-		// signalRConnection.on("ReceiveUsername", (username) => {
-		// 	signalRConnection.invoke("SetUsername", connectionId, username);
-		// });
-		// signalRConnection.on("ReceiveToken", (jwtToken) => {
-		// 	localStorage.setItem("token", jwtToken);
-		// });
 
 	}, []);
 

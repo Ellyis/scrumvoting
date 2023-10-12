@@ -1,5 +1,5 @@
 import React, { Component, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import './custom.css';
 import { ThemeProvider } from '@mui/styles';
@@ -22,11 +22,11 @@ export default class App extends Component {
 
 function AppPage() {
 	const theme = createTheme();
+	const navigate = useNavigate();
 	const hubUrl = process.env.REACT_APP_HUB_URL;
 
 	const [isReady, setIsReady] = useState(false);
 	const [signalRConnection, setSignalRConnection] = useState(null);
-	const [connectionId, setConnectionId] = useState('');
 
 	useEffect(() => {
 		const initializeConnection = async () => {
@@ -36,6 +36,14 @@ function AppPage() {
 		};
 		
 		initializeConnection();
+
+		
+		const storedUsername = localStorage.getItem('username');
+		const currentPath = window.location.pathname;
+
+		if (storedUsername) {
+			navigate(`/voting?username=${storedUsername}`);
+		}
 
 		return () => {
             if (signalRConnection) {
@@ -52,10 +60,6 @@ function AppPage() {
 		
 		try {
 			await connection.start();
-
-			// connection.on("ReceiveConnectionId", (clientConnectionId) => {
-			// 	setConnectionId(clientConnectionId);
-			// });
 
 			return connection;
 		} catch (error) {
