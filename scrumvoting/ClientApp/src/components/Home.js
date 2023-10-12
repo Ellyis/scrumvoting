@@ -1,15 +1,12 @@
 import { Avatar, Box, Button, Container, TextField, Typography } from "@mui/material";
 import { blue } from "@mui/material/colors";
 import { useNavigate } from "react-router-dom";
-import * as signalR from "@microsoft/signalr";
 import { useEffect, useState } from "react";
 import { GetIsSessionActive, PostUser } from "../api";
 import Notification from "./Notification";
 
-export default function Home() {
+export default function Home({ signalRConnection }) {
 	const navigate = useNavigate();
-
-	const hubUrl = process.env.REACT_APP_HUB_URL;
 
 	const [isSessionActive, setIsSessionActive] = useState(true);
 	const [username, setUsername] = useState('');
@@ -20,9 +17,6 @@ export default function Home() {
 	})
 
 	useEffect(() => {
-		// Initialize SignalR connection
-		const signalRConnection = initializeSignalR();
-
 		const fetchData = async () => {
 			try {
 				const response = await GetIsSessionActive();
@@ -33,34 +27,21 @@ export default function Home() {
 			}
 		};
 		fetchData();
-
-		// Clean up the connection when the component unmounts
-		return () => {
-			signalRConnection.stop();
-		};
-	}, []);
-
-	// Function to initialize SignalR connection
-	const initializeSignalR = () => {
-		const connection = new signalR.HubConnectionBuilder()
-			.withUrl(hubUrl)
-			.build();
-
-		connection.start()
-			.then(() => {
-				// SignalR connection established
-			})
-			.catch((error) => {
-				console.error("SignalR connection error: " + error);
-			});
-
-		connection.on("ReceiveSessionExists", (activeSessionExists) => {
-			console.log(activeSessionExists);
+		
+		signalRConnection.on("ReceiveSessionExists", (activeSessionExists) => {
 			setIsSessionActive(activeSessionExists);
 		});
+		// signalRConnection.on("ReceiveAdminConnection", (adminConnectionId, username) => {
+		// 	signalRConnection.invoke("SetAdminConnection", adminConnectionId, username);
+		// });
+		// signalRConnection.on("ReceiveUsername", (username) => {
+		// 	signalRConnection.invoke("SetUsername", connectionId, username);
+		// });
+		// signalRConnection.on("ReceiveToken", (jwtToken) => {
+		// 	localStorage.setItem("token", jwtToken);
+		// });
 
-		return connection; // Return the connection for cleanup
-	};
+	}, []);
 
 	const handleChange = (e) => {
 		const inputValue = e.target.value;
@@ -73,7 +54,7 @@ export default function Home() {
 		}
 	}
 
-	const handleSubmit = async (e) => {
+	const handleLogin = async (e) => {
 		e.preventDefault();
 
 		if (username.trim() === '') {
@@ -85,11 +66,11 @@ export default function Home() {
 		if (user) {
 			// Only navigate after the POST request is complete
 			navigate(`/voting?username=${username}`);
+			localStorage.setItem('username', username);
 		} else {
 			setError(true);
 			setHelperText('Username is already taken');
 		}
-		
 	}
 
 	return (
@@ -106,7 +87,7 @@ export default function Home() {
 				<Typography component="h1" variant="h5">
 					Voting Session
 				</Typography>
-				<Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+				<Box component="form" onSubmit={handleLogin} noValidate sx={{ mt: 1 }}>
 					<TextField
 						margin="normal"
 						fullWidth

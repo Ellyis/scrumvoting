@@ -1,6 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using scrumvoting.Hubs;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace scrumvoting.Controllers
 {
@@ -9,7 +13,7 @@ namespace scrumvoting.Controllers
     {
         private readonly IHubContext<ActiveUsersHub> _hubContext;
 
-        // Inject the Session object as a singleton service
+        // Inject Session object as a singleton service
         private Session _session;
 
         public SessionController(IHubContext<ActiveUsersHub> hubContext, Session session)
@@ -67,9 +71,10 @@ namespace scrumvoting.Controllers
                     IsAdmin = true // Set as admin
                 };
 
-                // Set the flag to indicate an active session
+                // Set session to active
                 _session.IsActive = true;
 
+                // Notify clients about the session existence
                 _hubContext.Clients.All.SendAsync("ReceiveSessionExists", _session.IsActive);
             }
             // If an active session exists, the user joins as a regular participant
@@ -85,6 +90,9 @@ namespace scrumvoting.Controllers
             _session.ActiveUsers.Add(user);
             _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
 
+            //var token = GenerateToken(username);
+            //_hubContext.Clients.Client(connectionId).SendAsync("ReceiveToken", token);
+
             return Ok(user);
         }
 
@@ -96,7 +104,7 @@ namespace scrumvoting.Controllers
             if (user != null)
             {
                 _session.ActiveUsers.Remove(user);
-
+                _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
                 return Ok(user);
             }
 
@@ -183,11 +191,38 @@ namespace scrumvoting.Controllers
                 user.HasVoted = false;
             }
 
+            _session.ToggleShow = false;
+
             // Send the updated active users to all clients
             _hubContext.Clients.All.SendAsync("ReceiveSessionRestarted", _session.ActiveUsers);
 
             return Ok("Session restarted");
         }
+
+        //public string GenerateToken(string username)
+        //{
+        //    var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("this-is-my-very-long-token-secret-key"));
+        //    var signingCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
+
+        //    var claims = new Claim[]
+        //    {
+        //        new Claim(ClaimTypes.Name, username),
+        //        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        //        new Claim(JwtRegisteredClaimNames.Sub, username),
+        //        new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString())
+        //    };
+
+        //    var token = new JwtSecurityToken(
+        //        issuer: "your-issuer",
+        //        audience: "your-audience",
+        //        claims: claims,
+        //        expires: DateTime.UtcNow.AddHours(1), // Set token expiration time
+        //        signingCredentials: signingCredentials
+        //    );
+
+        //    var tokenHandler = new JwtSecurityTokenHandler();
+        //    return tokenHandler.WriteToken(token);
+        //}
 
     }
 }

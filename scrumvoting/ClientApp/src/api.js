@@ -50,6 +50,21 @@ export const GetRecords = async () => {
     }
 };
 
+export const PostUser = async (username) => {
+    const endpoint = `${apiUrl}/session/users`;
+
+    try {
+        const response = await axios.post(endpoint, null, {
+            params: {
+                username
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.log(error);
+    }
+}
+
 export const UpdateUser = async (user) => {
     const endpoint = `${apiUrl}/session/users/${user.name}`;
 
@@ -100,12 +115,11 @@ export const EndSession = async () => {
     }
 }
 
-export const PostUser = async (username) => {
-    const endpoint = `${apiUrl}/session/users?username=${username}`;
+export const LeaveSession = async (username) => {
+    const endpoint = `${apiUrl}/session/users/${username}`;
 
     try {
-        const response = await axios.post(endpoint, username);
-        return response.data;
+        await axios.delete(endpoint);
     } catch (error) {
         console.log(error);
     }

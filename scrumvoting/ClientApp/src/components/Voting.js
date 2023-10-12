@@ -1,17 +1,16 @@
-import { Box, Button, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Toolbar, Typography } from "@mui/material"
+import { Box, Button, IconButton, Paper, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Toolbar, Typography } from "@mui/material"
 import { makeStyles } from "@mui/styles";
 import { useLocation, useNavigate } from "react-router-dom";
-import * as signalR from "@microsoft/signalr";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog";
 import ReportIcon from '@mui/icons-material/Report';
-import { EndSession, GetRecords, GetToggleShow, GetUser, ResetUserPoints, UpdateToggleShow, UpdateUser } from "../api";
+import { EndSession, GetRecords, GetToggleShow, GetUser, LeaveSession, ResetUserPoints, UpdateToggleShow, UpdateUser } from "../api";
 import Notification from "./Notification";
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import DropdownButton from "./DropdownButton";
 
 const useStyles = makeStyles(theme => ({
 	table: {
@@ -57,11 +56,9 @@ const useStyles = makeStyles(theme => ({
 	},
 }))
 
-export default function Voting() {
+export default function Voting({ signalRConnection }) {
 	const classes = useStyles();
 	const navigate = useNavigate();
-
-	const hubUrl = process.env.REACT_APP_HUB_URL;
 
 	const location = useLocation();
 	const searchParams = new URLSearchParams(location.search);
@@ -74,13 +71,10 @@ export default function Voting() {
 		isOpen: false, type: '', message: ''
 	})
 	const [confirmDialog, setConfirmDialog] = useState({
-		isOpen: false, title: '', subtitle: '', color: '', icon: null
+		isOpen: false, title: '', subtitle: '', icon: null, iconColor: '', buttonColor: ''
 	})
 
 	useEffect(() => {
-		// Initialize SignalR connection
-		const signalRConnection = initializeSignalR();
-
 		const fetchData = async () => {
 			try {
 				const [showResponse, recordsResponse, userResponse] = await Promise.all([
@@ -102,36 +96,17 @@ export default function Voting() {
 		};
 		fetchData();
 
-		// Clean up the connection when the component unmounts
-		return () => {
-			signalRConnection.stop();
-		};
-	}, []);
-
-	// Function to initialize SignalR connection
-	const initializeSignalR = () => {
-		const connection = new signalR.HubConnectionBuilder()
-			.withUrl(hubUrl)
-			.build();
-
-		connection.start()
-			.then(() => {
-				// SignalR connection established
-			})
-			.catch((error) => {
-				console.error("SignalR connection error: " + error);
-			});
-
-		connection.on("ReceiveActiveUsers", (activeUsers) => {
+		signalRConnection.on("ReceiveActiveUsers", (activeUsers) => {
 			setRecords(activeUsers);
 		});
 
-		connection.on('ReceiveToggleShow', (toggleShowState) => {
+		signalRConnection.on('ReceiveToggleShow', (toggleShowState) => {
 			setToggleShow(toggleShowState);
 		});
 
-		connection.on("ReceiveSessionRestarted", (activeUsers) => {
+		signalRConnection.on("ReceiveSessionRestarted", (activeUsers) => {
 			setRecords(activeUsers);
+			setToggleShow(false);
 			setUser(prevUser => ({
 				...prevUser,
 				hasVoted: false
@@ -143,30 +118,23 @@ export default function Voting() {
 			})
 		});
 
-		connection.on("ReceiveSessionExists", (sessionExists) => {
+		signalRConnection.on("ReceiveSessionExists", (sessionExists) => {
 			// Redirect users back to the home page if session has ended
 			if (sessionExists === false) {
 				navigate('/');
 			}
 		});
+	}, []);
 
-		return connection; // Return the connection for cleanup
-	};
-
-	const handleChange = (event) => {
-		setUser(prev =>({
-			...prev,
-			points: event.target.value
-		}));
-	};
-
-	const handleVote = () => {
-		setUser(prev => ({
-			...prev,
+	const castVote = (newPoints) => {
+		const updatedUser = {
+			...user,
+			points: newPoints,
 			hasVoted: true
-		}));
-
-		if (UpdateUser(user)) {
+		}
+		console.log(updatedUser);
+		setUser(updatedUser);
+		if (UpdateUser(updatedUser)) {
 			setNotify({
 				isOpen: true,
 				type: 'success',
@@ -187,8 +155,9 @@ export default function Voting() {
 			title: 'Are you sure you want to restart this session?',
 			subtitle: "All users' points will be reset.",
 			isOpen: true,
-			color: '#1976D2',
 			icon: <RefreshIcon />,
+			iconColor: '#1976D2',
+			buttonColor: 'primary',
 			onConfirm: () => ResetUserPoints()
 		})
 	};
@@ -198,11 +167,36 @@ export default function Voting() {
 			title: 'Are you sure you want to end this session?',
 			subtitle: "All users will be kicked.",
 			isOpen: true,
-			color: '#d32f2f',
 			icon: <ReportIcon />,
-			onConfirm: () => EndSession()
+			iconColor: '#d32f2f',
+			buttonColor: 'error',
+			onConfirm: () => endSession()
 		})
 	};
+
+	const handleLeaveSession = () => {
+		setConfirmDialog({
+			title: 'Are you sure you want to leave this session?',
+			subtitle: "You will be removed from this session.",
+			isOpen: true,
+			icon: <ReportIcon />,
+			iconColor: '#d32f2f',
+			buttonColor: 'error',
+			onConfirm: () => leaveSession(username)
+		})
+	};
+
+	const endSession = () => {
+		EndSession();
+		localStorage.removeItem('username', username);
+	}
+
+	const leaveSession = async (username) => {
+		await LeaveSession(username);
+
+		localStorage.removeItem('username', username);
+		navigate('/');
+	}
 
 	const calculateAveragePoints = (records) => {
 		if (records.length === 0) {
@@ -218,51 +212,20 @@ export default function Voting() {
 
 	return (
 		<>
-			<Box sx={{ display: 'flex', justifyContent: 'center', m: 2 }}>
-				<FormControl sx={{ width: '150px' }}>
-					<InputLabel>Story Points</InputLabel>
-					<Select
-						value={user.points}
-						label="Story Points"
-						onChange={handleChange}
-					>
-						<MenuItem value={0.5}>0.5</MenuItem>
-						<MenuItem value={1}>1</MenuItem>
-						<MenuItem value={2}>2</MenuItem>
-						<MenuItem value={3}>3</MenuItem>
-						<MenuItem value={5}>5</MenuItem>
-						<MenuItem value={8}>8</MenuItem>
-						<MenuItem value={13}>13</MenuItem>
-						<MenuItem value={21}>21</MenuItem>
-					</Select>
-				</FormControl>
-			</Box>
-
-			<Box sx={{display: 'flex', justifyContent: 'center'}}>
+			<Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
 				<Paper elevation={3} sx={{ width: '80%' }}>
 					<Toolbar sx={{ justifyContent: 'space-between' }}>
 						<Typography variant="h6" component="div">Voting List</Typography>
-						{user.isAdmin && (
-							<Box style={{ display: 'flex', gap: '1rem' }}>
-								<Button
-									variant="outlined"
-									startIcon={<RefreshIcon />}
-									onClick={handleReset}
-								>
-									Reset Session
-								</Button>
-								<Button 
-									variant="contained"
-									color="success"
-									startIcon={<AddCircleOutlineIcon />}
-									onClick={handleVote}
-									disabled={user.hasVoted}
-								>
-									Cast Vote
-								</Button>
-							</Box>
-						)}
-						
+						{/* <Button 
+							variant="contained"
+							color="success"
+							startIcon={<AddCircleOutlineIcon />}
+							onClick={handleVote}
+							disabled={user.hasVoted}
+						>
+							Cast Vote
+						</Button> */}
+						<DropdownButton setConfirmDialog={setConfirmDialog} castVote={castVote} disabled={user.hasVoted} />
 					</Toolbar>
 
 					<Box sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -272,7 +235,7 @@ export default function Voting() {
 									<TableCell>No.</TableCell>
 									<TableCell>Name</TableCell>
 									<TableCell align="center">Status</TableCell>
-									<TableCell width="30%">
+									<TableCell width="35%">
 										Story Points &nbsp;
 										{user.isAdmin && (
 											<IconButton style={{ padding: '0', color: '#333996' }} onClick={toggleShowPoints}>
@@ -312,27 +275,39 @@ export default function Voting() {
 				</Paper>
 			</Box>
 
-			{user.isAdmin && (
-				<Box sx={{display: 'flex', justifyContent: 'center'}}>
-					<Box style={{ width: '80%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', margin: '1rem' }}>
+			<Box sx={{ display: 'flex', justifyContent: 'center' }}>
+				<Box style={{ width: '80%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', margin: '1rem' }}>
+					{user.isAdmin ? (
+						<>
+							<Button 
+								variant="outlined"
+								color="error"
+								startIcon={<ExitToAppIcon />}
+								onClick={handleEndSession}
+							>
+								End Session
+							</Button>
+							<Button
+								variant="outlined"
+								startIcon={<RefreshIcon />}
+								onClick={handleReset}
+							>
+								Reset Votes
+							</Button>
+						</>
+					) : (
 						<Button 
 							variant="outlined"
 							color="error"
 							startIcon={<ExitToAppIcon />}
-							onClick={handleEndSession}
+							onClick={handleLeaveSession}
 						>
-							End Session
+							Leave Session
 						</Button>
-						<Button
-							variant="outlined"
-							startIcon={<RefreshIcon />}
-							onClick={handleReset}
-						>
-							Reset Session
-						</Button>
-					</Box>
+					)}
+					
 				</Box>
-			)}
+			</Box>
 
 			<Notification 
 				notify={notify}

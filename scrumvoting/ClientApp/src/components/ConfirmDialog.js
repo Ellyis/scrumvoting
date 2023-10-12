@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Typography } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
 import { makeStyles } from "@mui/styles";
 
 const useStyles = makeStyles(theme => ({
@@ -17,6 +17,7 @@ const useStyles = makeStyles(theme => ({
         gap: theme.spacing(2)
     },
     titleIcon: {
+        fontSize: '6rem',
         '& .MuiSvgIcon-root': {
             fontSize: '8rem'
         },
@@ -32,9 +33,9 @@ export default function ConfirmDialog({ confirmDialog, setConfirmDialog }) {
     return (
         <Dialog open={confirmDialog.isOpen} classes={{ paper: classes.dialog }}>
             <DialogTitle className={classes.dialogTitle}>
-                <IconButton className={classes.titleIcon} style={{ color: confirmDialog.color }}>
+                <Box className={classes.titleIcon} style={{ color: confirmDialog.iconColor }}>
                     {confirmDialog.icon}
-                </IconButton>
+                </Box>
             </DialogTitle>
             <DialogContent className={classes.dialogContent}>
                 <Typography variant="h6">
@@ -46,7 +47,8 @@ export default function ConfirmDialog({ confirmDialog, setConfirmDialog }) {
             </DialogContent>
             <DialogActions className={classes.dialogAction}>
                 <Button
-                    variant="contained"
+                    variant="outlined"
+                    color={confirmDialog.buttonColor}
                     onClick={() => setConfirmDialog(prev => ({
                         ...prev,
                         isOpen: false
@@ -56,7 +58,7 @@ export default function ConfirmDialog({ confirmDialog, setConfirmDialog }) {
                 </Button>
                 <Button
                     variant="contained"
-                    color="error"
+                    color={confirmDialog.buttonColor}
                     onClick={() => {
                         confirmDialog.onConfirm(); 
                         setConfirmDialog(prev => ({
