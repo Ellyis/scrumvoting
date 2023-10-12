@@ -32,10 +32,9 @@ app.MapControllerRoute(
 app.MapFallbackToFile("index.html");
 
 app.UseCors(options =>
-    options.WithOrigins("http://localhost:44471")
+    options.AllowAnyOrigin()
     .AllowAnyMethod()
     .AllowAnyHeader()
-    .AllowCredentials()
 );
 
 app.MapHub<ActiveUsersHub>("/activeUsersHub");
