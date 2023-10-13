@@ -7,68 +7,54 @@ namespace scrumvoting.Hubs
     public class ActiveUsersHub : Hub
     {
         // Inject SessionController as a singleton service
-        //private SessionController _sessionController;
-        //private static Dictionary<string, string?> connectedClients = new Dictionary<string, string?>();
-        //private static string? adminConnectionId;
-        //private static string? adminUsername;
+        private SessionController _sessionController;
+        private static string? adminConnectionId;
+        private static DateTime? adminDisconnectedTimestamp = null;
+        private Timer? sessionTimer = null;
 
-        //public ActiveUsersHub(SessionController sessionController)
-        //{
-        //    _sessionController = sessionController;
-        //}
+        public ActiveUsersHub(SessionController sessionController)
+        {
+            _sessionController = sessionController;
+        }
 
-        //public override async Task OnConnectedAsync()
-        //{
-        //    // Add the connected client's connection ID to the dictionary
-        //    var connectionId = Context.ConnectionId;
-        //    connectedClients[connectionId] = null;
-        //    Clients.Client(connectionId).SendAsync("ReceiveConnectionId", connectionId);
+        public void SetAdminConnected(string connectionId)
+        {
+            adminConnectionId = connectionId;
+            adminDisconnectedTimestamp = null;
 
-        //    await base.OnConnectedAsync();
-        //}
+            // Start a background task to periodically check the adminDisconnectedTimestamp
+            sessionTimer = new Timer(CheckAdminInactive, null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
 
-        //public void SetAdminConnection(string connectionId, string username)
-        //{
-        //    adminConnectionId = connectionId;
-        //    adminUsername = username;
-        //}
+        }
 
-        //// Update dictionary with username
-        //public void SetUsername(string connectionId, string username)
-        //{
-        //    if (connectedClients.ContainsKey(connectionId))
-        //    {
-        //        connectedClients[connectionId] = username;
-        //        Console.WriteLine(connectedClients);
-        //    }
-        //}
+        public override async Task OnDisconnectedAsync(Exception exception)
+        {
+            if (Context.ConnectionId == adminConnectionId)
+            {
+                adminDisconnectedTimestamp = DateTime.UtcNow;
+                adminConnectionId = null;
+            }
 
-        //public override async Task OnDisconnectedAsync(Exception exception)
-        //{
-        //    var connectionId = Context.ConnectionId;
+            await base.OnDisconnectedAsync(exception);
+        }
 
-        //    // If admin disconnects, reset admin details and end the session
-        //    if (connectionId == adminConnectionId)
-        //    {
-        //        adminConnectionId = null;
-        //        adminUsername = null;
-        //        _sessionController.EndSession();
-        //    }
-        //    // Else only the client leaves the session
-        //    else
-        //    {
-        //        var username = connectedClients[connectionId];
-        //        _sessionController.LeaveSession(username);
-        //    }
+        private void CheckAdminInactive(object state)
+        {
+            if (adminConnectionId == null && adminDisconnectedTimestamp != null)
+            {
+                // End the session if the admin has disconnected over a set amount of time
+                var elapsedSeconds = (DateTime.UtcNow - adminDisconnectedTimestamp.Value).TotalSeconds;
+                if (elapsedSeconds > 30)
+                {
+                    _sessionController.EndSession();
 
-        //    // Remove the disconnected client's connection ID from the dictionary
-        //    if (connectedClients.ContainsKey(connectionId))
-        //    {
-        //        connectedClients.Remove(connectionId);
-        //    }
-
-        //    await base.OnDisconnectedAsync(exception);
-        //}
+                    // When the session ends, destroy the timer
+                    sessionTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                    sessionTimer?.Dispose();
+                    sessionTimer = null;
+                }
+            }
+        }
 
         public async Task SendConnectionIdToClient(string clientConnectionId)
         {
@@ -77,5 +63,3 @@ namespace scrumvoting.Hubs
         }
     }
 }
-
-

@@ -1,10 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using scrumvoting.Hubs;
-using System.Security.Claims;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace scrumvoting.Controllers
 {
@@ -23,32 +19,33 @@ namespace scrumvoting.Controllers
         }
 
         [HttpGet("active")]
-        public IActionResult CheckActiveSession()
+        public IActionResult GetIsActive()
         {
             // Return the boolean value indicating whether an active session exists
             return Ok(_session.IsActive);
         }
 
-        [HttpGet("toggleShow")]
-        public IActionResult CheckToggleShow()
+        [HttpGet("reveal")]
+        public IActionResult GetIsRevealed()
         {
             // Return the boolean value indicating whether show points is toggled on
-            return Ok(_session.ToggleShow);
+            Console.WriteLine(_session.IsRevealed);
+            return Ok(_session.IsRevealed);
         }
 
-        [HttpPost("toggleShow")]
-        public IActionResult UpdateToggleShow(bool toggleShow)
+        [HttpPost("reveal")]
+        public IActionResult UpdateIsRevealed()
         {
-            _session.ToggleShow = toggleShow;
+            _session.IsRevealed = true;
 
             // Notify all clients about the updated toggls show value
-            _hubContext.Clients.All.SendAsync("ReceiveToggleShow", toggleShow);
+            _hubContext.Clients.All.SendAsync("ReceiveIsRevealed", true);
 
             return Ok("Toggle show updated");
         }
 
         [HttpPost("users")]
-        public IActionResult CreateOrJoinSession(string username)
+        public IActionResult CreateOrJoinSession(string username, string connectionId)
         {
             // Check if a user with the provided username already exists
             var existingUser = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
@@ -75,7 +72,8 @@ namespace scrumvoting.Controllers
                 _session.IsActive = true;
 
                 // Notify clients about the session existence
-                _hubContext.Clients.All.SendAsync("ReceiveSessionExists", _session.IsActive);
+                _hubContext.Clients.All.SendAsync("ReceiveSessionExists", true);
+                _hubContext.Clients.Client(connectionId).SendAsync("ReceiveAdminConnectionId", connectionId);
             }
             // If an active session exists, the user joins as a regular participant
             else
@@ -89,9 +87,7 @@ namespace scrumvoting.Controllers
 
             _session.ActiveUsers.Add(user);
             _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
-
-            //var token = GenerateToken(username);
-            //_hubContext.Clients.Client(connectionId).SendAsync("ReceiveToken", token);
+            _hubContext.Clients.All.SendAsync("ReceiveNewUser", username);
 
             return Ok(user);
         }
@@ -105,6 +101,7 @@ namespace scrumvoting.Controllers
             {
                 _session.ActiveUsers.Remove(user);
                 _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
+                _hubContext.Clients.All.SendAsync("ReceiveLeftUser", username);
                 return Ok(user);
             }
 
@@ -121,7 +118,7 @@ namespace scrumvoting.Controllers
             _session.IsActive = false;
 
             // Notify all clients that the session has ended
-            _hubContext.Clients.All.SendAsync("ReceiveSessionExists", _session.IsActive);
+            _hubContext.Clients.All.SendAsync("ReceiveSessionExists", false);
 
 
             return Ok("Session has ended");
@@ -151,32 +148,26 @@ namespace scrumvoting.Controllers
         }
 
         [HttpPost("users/{username}")]
-        public IActionResult UpdateUser(string username, int points)
+        public IActionResult UpdateUserPoints(string username, int points)
         {
             // Find the user by username
             var user = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
 
             if (user != null)
             {
-                // Check if the user has already voted
                 if (!user.HasVoted)
                 {
-                    // Update the user's points
-                    user.Points = points;
-
                     // Mark the user as voted
                     user.HasVoted = true;
-
-                    // Send the updated active users to all clients
-                    _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
-
-                    return Ok(user);
                 }
-                else
-                {
-                    // Handle the case where the user has already voted
-                    return BadRequest("User has already voted.");
-                }
+
+                // Update the user's points
+                user.Points = points;
+
+                // Send the updated active users to all clients
+                _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
+
+                return Ok(user);
             }
 
             return NotFound();
@@ -191,38 +182,12 @@ namespace scrumvoting.Controllers
                 user.HasVoted = false;
             }
 
-            _session.ToggleShow = false;
+            _session.IsRevealed = false;
 
             // Send the updated active users to all clients
-            _hubContext.Clients.All.SendAsync("ReceiveSessionRestarted", _session.ActiveUsers);
+            _hubContext.Clients.All.SendAsync("ReceiveVotesReset", _session.ActiveUsers);
 
             return Ok("Session restarted");
         }
-
-        //public string GenerateToken(string username)
-        //{
-        //    var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("this-is-my-very-long-token-secret-key"));
-        //    var signingCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
-
-        //    var claims = new Claim[]
-        //    {
-        //        new Claim(ClaimTypes.Name, username),
-        //        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        //        new Claim(JwtRegisteredClaimNames.Sub, username),
-        //        new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString())
-        //    };
-
-        //    var token = new JwtSecurityToken(
-        //        issuer: "your-issuer",
-        //        audience: "your-audience",
-        //        claims: claims,
-        //        expires: DateTime.UtcNow.AddHours(1), // Set token expiration time
-        //        signingCredentials: signingCredentials
-        //    );
-
-        //    var tokenHandler = new JwtSecurityTokenHandler();
-        //    return tokenHandler.WriteToken(token);
-        //}
-
     }
 }

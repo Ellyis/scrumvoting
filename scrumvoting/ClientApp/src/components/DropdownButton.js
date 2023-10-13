@@ -30,7 +30,7 @@ export default function DropdownButton({ setConfirmDialog, castVote, ...other })
         setConfirmDialog({
             isOpen: true,
             title: 'Are you sure you want to cast your vote?',
-            subtitle: 'You can only vote once per round.',
+            subtitle: `You have selected ${option}.`,
             icon: option,
             buttonColor: 'success',
             onConfirm: () => castVote(option)

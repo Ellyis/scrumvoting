@@ -1,15 +1,14 @@
-import { Box, Button, IconButton, Paper, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Toolbar, Typography } from "@mui/material"
+import { Box, Button, Paper, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Toolbar, Typography } from "@mui/material"
 import { makeStyles } from "@mui/styles";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog";
 import ReportIcon from '@mui/icons-material/Report';
-import { EndSession, GetRecords, GetToggleShow, GetUser, LeaveSession, ResetUserPoints, UpdateToggleShow, UpdateUser } from "../api";
+import { EndSession, GetRecords, GetIsSessionRevealed, GetUser, LeaveSession, ResetUserPoints, UpdateUserPoints, RevealSession } from "../api";
 import Notification from "./Notification";
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import DropdownButton from "./DropdownButton";
 
 const useStyles = makeStyles(theme => ({
@@ -47,7 +46,7 @@ const useStyles = makeStyles(theme => ({
 	},
 	votedCell: {
 		textAlign: 'center',
-		width: '70%',
+		width: '65%',
 		color: 'white',
 		padding: '0.5em 0',
 		borderRadius: '2em',
@@ -63,10 +62,11 @@ export default function Voting({ signalRConnection }) {
 	const location = useLocation();
 	const searchParams = new URLSearchParams(location.search);
 	const username = searchParams.get('username');
+	const connectionId = signalRConnection.connection.connectionId;
 
 	const [records, setRecords] = useState([]);
 	const [user, setUser] = useState({});
-	const [toggleShow, setToggleShow] = useState(false);
+	const [isSessionRevealed, setIsSessionRevealed] = useState(false);
 	const [notify, setNotify] = useState({
 		isOpen: false, type: '', message: ''
 	})
@@ -75,18 +75,23 @@ export default function Voting({ signalRConnection }) {
 	})
 
 	useEffect(() => {
+		if (user.isAdmin) {
+			signalRConnection.invoke("SetAdminConnected", connectionId);
+		}
+	}, [user])
+
+	useEffect(() => {
 		const fetchData = async () => {
 			try {
-				const [showResponse, recordsResponse, userResponse] = await Promise.all([
-					GetToggleShow(),
+				const [isRevealed, records, user] = await Promise.all([
+					GetIsSessionRevealed(),
 					GetRecords(),
 					GetUser(username)
 				]);
-				// Access the responses here
-				setToggleShow(showResponse);
-				setRecords(recordsResponse);
-				if (userResponse) {
-					setUser(userResponse);
+				setIsSessionRevealed(isRevealed);
+				setRecords(records);
+				if (user) {
+					setUser(user);
 				} else {
 					navigate('/')
 				}
@@ -94,19 +99,40 @@ export default function Voting({ signalRConnection }) {
 				console.log(error);
 			}
 		};
-		fetchData();
+		fetchData();		
 
 		signalRConnection.on("ReceiveActiveUsers", (activeUsers) => {
 			setRecords(activeUsers);
 		});
 
-		signalRConnection.on('ReceiveToggleShow', (toggleShowState) => {
-			setToggleShow(toggleShowState);
+		signalRConnection.on("ReceiveNewUser", (name) => {
+			if (name !== username) {
+				setNotify({
+					isOpen: true,
+					type: 'success',
+					message: `${name} has joined the session`
+				})
+			}
 		});
 
-		signalRConnection.on("ReceiveSessionRestarted", (activeUsers) => {
+		signalRConnection.on("ReceiveLeftUser", (name) => {
+			if (name !== username) {
+				setNotify({
+					isOpen: true,
+					type: 'error',
+					message: `${name} has left the session`
+				})
+			}
+		});
+
+		signalRConnection.on('ReceiveIsRevealed', (isRevealed) => {
+			console.log(isRevealed);
+			setIsSessionRevealed(isRevealed);
+		});
+
+		signalRConnection.on("ReceiveVotesReset", (activeUsers) => {
 			setRecords(activeUsers);
-			setToggleShow(false);
+			setIsSessionRevealed(false);
 			setUser(prevUser => ({
 				...prevUser,
 				hasVoted: false
@@ -122,6 +148,7 @@ export default function Voting({ signalRConnection }) {
 			// Redirect users back to the home page if session has ended
 			if (sessionExists === false) {
 				navigate('/');
+				localStorage.removeItem('username');
 			}
 		});
 	}, []);
@@ -132,9 +159,8 @@ export default function Voting({ signalRConnection }) {
 			points: newPoints,
 			hasVoted: true
 		}
-		console.log(updatedUser);
 		setUser(updatedUser);
-		if (UpdateUser(updatedUser)) {
+		if (UpdateUserPoints(updatedUser)) {
 			setNotify({
 				isOpen: true,
 				type: 'success',
@@ -143,17 +169,15 @@ export default function Voting({ signalRConnection }) {
 		}
 	}
 
-	const toggleShowPoints = () => {
-		const newToggleShow = !toggleShow;
-		setToggleShow(newToggleShow);
-
-		UpdateToggleShow(newToggleShow);
+	const revealSession = () => {
+		setIsSessionRevealed(true);
+		RevealSession();
 	}
 
 	const handleReset = () => {
 		setConfirmDialog({
-			title: 'Are you sure you want to restart this session?',
-			subtitle: "All users' points will be reset.",
+			title: 'Are you sure you want to reset all votes?',
+			subtitle: "This action cannot be undone.",
 			isOpen: true,
 			icon: <RefreshIcon />,
 			iconColor: '#1976D2',
@@ -177,7 +201,7 @@ export default function Voting({ signalRConnection }) {
 	const handleLeaveSession = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to leave this session?',
-			subtitle: "You will be removed from this session.",
+			subtitle: "Your data will not be saved.",
 			isOpen: true,
 			icon: <ReportIcon />,
 			iconColor: '#d32f2f',
@@ -225,7 +249,7 @@ export default function Voting({ signalRConnection }) {
 						>
 							Cast Vote
 						</Button> */}
-						<DropdownButton setConfirmDialog={setConfirmDialog} castVote={castVote} disabled={user.hasVoted} />
+						<DropdownButton setConfirmDialog={setConfirmDialog} castVote={castVote} disabled={isSessionRevealed} />
 					</Toolbar>
 
 					<Box sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -233,16 +257,9 @@ export default function Voting({ signalRConnection }) {
 							<TableHead>
 								<TableRow>
 									<TableCell>No.</TableCell>
-									<TableCell>Name</TableCell>
+									<TableCell width="20%">Name</TableCell>
 									<TableCell align="center">Status</TableCell>
-									<TableCell width="35%">
-										Story Points &nbsp;
-										{user.isAdmin && (
-											<IconButton style={{ padding: '0', color: '#333996' }} onClick={toggleShowPoints}>
-											{toggleShow ? <VisibilityIcon /> : <VisibilityOffIcon />}
-										</IconButton>
-										)}
-									</TableCell>
+									<TableCell width="30%">Story Points</TableCell>
 								</TableRow>
 							</TableHead>
 							<TableBody>
@@ -255,7 +272,7 @@ export default function Voting({ signalRConnection }) {
 												{user.hasVoted ? 'Voted' : 'Not Voted'}
 											</div>
 										</TableCell>
-										<TableCell>{toggleShow ? user.points : '*'}</TableCell>
+										<TableCell>{isSessionRevealed ? user.points : '*'}</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -266,7 +283,7 @@ export default function Voting({ signalRConnection }) {
 									</TableCell>
 									<TableCell>
 										{/* Calculate and display the average points here */}
-										{toggleShow ? calculateAveragePoints(records) : '*'}
+										{isSessionRevealed ? calculateAveragePoints(records) : '*'}
 									</TableCell>
 								</TableRow>
 							</TableFooter>
@@ -287,13 +304,24 @@ export default function Voting({ signalRConnection }) {
 							>
 								End Session
 							</Button>
-							<Button
-								variant="outlined"
-								startIcon={<RefreshIcon />}
-								onClick={handleReset}
-							>
-								Reset Votes
-							</Button>
+							{isSessionRevealed ? (
+								<Button
+									variant="outlined"
+									startIcon={<RefreshIcon />}
+									onClick={handleReset}
+								>
+									Reset Votes
+								</Button>
+							) : (
+								<Button
+									variant="outlined"
+									startIcon={<VisibilityIcon />}
+									onClick={revealSession}
+								>
+									Reveal Points
+								</Button>
+							)}
+							
 						</>
 					) : (
 						<Button 

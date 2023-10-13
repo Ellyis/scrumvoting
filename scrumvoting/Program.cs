@@ -1,9 +1,6 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using scrumvoting;
 using scrumvoting.Controllers;
 using scrumvoting.Hubs;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,9 +29,10 @@ app.MapControllerRoute(
 app.MapFallbackToFile("index.html");
 
 app.UseCors(options =>
-    options.AllowAnyOrigin()
+    options.WithOrigins("http://localhost", "http://localhost:44471", "https://apps01.esrimy.com")
     .AllowAnyMethod()
     .AllowAnyHeader()
+    .AllowCredentials()
 );
 
 app.MapHub<ActiveUsersHub>("/activeUsersHub");

@@ -8,6 +8,8 @@ import Notification from "./Notification";
 export default function Home({ signalRConnection }) {
 	const navigate = useNavigate();
 
+	const connectionId = signalRConnection.connection.connectionId;
+
 	const [isSessionActive, setIsSessionActive] = useState(true);
 	const [username, setUsername] = useState('');
 	const [error, setError] = useState(false);
@@ -32,6 +34,10 @@ export default function Home({ signalRConnection }) {
 			setIsSessionActive(activeSessionExists);
 		});
 
+		signalRConnection.on("ReceiveAdminConnectionId", (adminConnectionId) => {
+			signalRConnection.invoke("SetAdminConnected", adminConnectionId);
+		});
+
 	}, []);
 
 	const handleChange = (e) => {
@@ -53,7 +59,7 @@ export default function Home({ signalRConnection }) {
 			setHelperText('Username is required');
 			return;
 		}
-		const user = await PostUser(username.trim());
+		const user = await PostUser(username.trim(), connectionId);
 		if (user) {
 			// Only navigate after the POST request is complete
 			navigate(`/voting?username=${username}`);
@@ -84,7 +90,7 @@ export default function Home({ signalRConnection }) {
 						fullWidth
 						label="Username"
 						name="username"
-						autoComplete="no"
+						autoComplete="off"
 						autoFocus
 						value={username}
 						onChange={handleChange}

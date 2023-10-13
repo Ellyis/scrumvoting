@@ -39,7 +39,6 @@ function AppPage() {
 
 		
 		const storedUsername = localStorage.getItem('username');
-		const currentPath = window.location.pathname;
 
 		if (storedUsername) {
 			navigate(`/voting?username=${storedUsername}`);

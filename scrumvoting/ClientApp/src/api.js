@@ -13,11 +13,22 @@ export const GetIsSessionActive = async () => {
     }
 }
 
-export const GetToggleShow = async () => {
-    const endpoint = `${apiUrl}/session/toggleShow`;
+export const GetIsSessionRevealed = async () => {
+    const endpoint = `${apiUrl}/session/reveal`;
 
     try {
         const response = await axios.get(endpoint);
+        return response.data;
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+export const RevealSession = async () => {
+    const endpoint = `${apiUrl}/session/reveal`;
+
+    try {
+        const response = await axios.post(endpoint);
         return response.data;
     } catch (error) {
         console.log(error);
@@ -50,13 +61,14 @@ export const GetRecords = async () => {
     }
 };
 
-export const PostUser = async (username) => {
+export const PostUser = async (username, connectionId) => {
     const endpoint = `${apiUrl}/session/users`;
 
     try {
         const response = await axios.post(endpoint, null, {
             params: {
-                username
+                username,
+                connectionId
             }
         });
         return response.data;
@@ -65,7 +77,7 @@ export const PostUser = async (username) => {
     }
 }
 
-export const UpdateUser = async (user) => {
+export const UpdateUserPoints = async (user) => {
     const endpoint = `${apiUrl}/session/users/${user.name}`;
 
     try {
@@ -79,21 +91,6 @@ export const UpdateUser = async (user) => {
         console.log(error);
     }
 };
-
-export const UpdateToggleShow = async (newToggleShow) => {
-    const endpoint = `${apiUrl}/session/toggleShow`;
-
-    try {
-        const response = await axios.post(endpoint, null, {
-            params: {
-                toggleShow: newToggleShow
-            }
-        });
-        return response.data;
-    } catch (error) {
-        console.log(error);
-    }
-}
 
 export const ResetUserPoints = async () => {
     const endpoint = `${apiUrl}/session/users/reset`;
