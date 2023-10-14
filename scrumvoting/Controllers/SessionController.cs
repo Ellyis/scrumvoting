@@ -44,6 +44,28 @@ namespace scrumvoting.Controllers
             return Ok("Toggle show updated");
         }
 
+        [HttpPost("users/forfeit/{username}")]
+        public IActionResult UpdateUserForfeited(string username)
+        {
+            // Find the user by username
+            var user = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
+
+            if (user != null)
+            {
+                // Mark the user as forfeited
+                user.HasForfeited = true;
+                user.HasVoted = false;
+                user.Points = 0;
+
+                // Send the updated active users to all clients
+                _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
+
+                return Ok(user);
+            }
+
+            return NotFound();
+        }
+
         [HttpPost("users")]
         public IActionResult CreateOrJoinSession(string username, string connectionId)
         {
@@ -148,21 +170,19 @@ namespace scrumvoting.Controllers
         }
 
         [HttpPost("users/{username}")]
-        public IActionResult UpdateUserPoints(string username, int points)
+        public IActionResult UpdateUserPoints(string username, double points)
         {
             // Find the user by username
             var user = _session.ActiveUsers.FirstOrDefault(user => user.Name.Equals(username, StringComparison.OrdinalIgnoreCase));
 
             if (user != null)
             {
-                if (!user.HasVoted)
-                {
-                    // Mark the user as voted
-                    user.HasVoted = true;
-                }
-
                 // Update the user's points
                 user.Points = points;
+
+                // Mark the user as voted
+                user.HasVoted = true;
+                user.HasForfeited = false;
 
                 // Send the updated active users to all clients
                 _hubContext.Clients.All.SendAsync("ReceiveActiveUsers", _session.ActiveUsers);
@@ -180,6 +200,7 @@ namespace scrumvoting.Controllers
             {
                 user.Points = 0; // Reset each user's points to 0
                 user.HasVoted = false;
+                user.HasForfeited = false;
             }
 
             _session.IsRevealed = false;

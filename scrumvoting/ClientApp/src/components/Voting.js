@@ -4,11 +4,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog";
 import ReportIcon from '@mui/icons-material/Report';
-import { EndSession, GetRecords, GetIsSessionRevealed, GetUser, LeaveSession, ResetUserPoints, UpdateUserPoints, RevealSession } from "../api";
+import { EndSession, GetRecords, GetIsSessionRevealed, GetUser, LeaveSession, ResetUserPoints, UpdateUserPoints, RevealSession, ForfeitUser } from "../api";
 import Notification from "./Notification";
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import FlagIcon from '@mui/icons-material/Flag';
 import DropdownButton from "./DropdownButton";
 
 const useStyles = makeStyles(theme => ({
@@ -126,7 +127,6 @@ export default function Voting({ signalRConnection }) {
 		});
 
 		signalRConnection.on('ReceiveIsRevealed', (isRevealed) => {
-			console.log(isRevealed);
 			setIsSessionRevealed(isRevealed);
 		});
 
@@ -135,7 +135,8 @@ export default function Voting({ signalRConnection }) {
 			setIsSessionRevealed(false);
 			setUser(prevUser => ({
 				...prevUser,
-				hasVoted: false
+				hasVoted: false,
+				hasForfeited: false
 			}))
 			setNotify({
 				isOpen: true,
@@ -153,26 +154,29 @@ export default function Voting({ signalRConnection }) {
 		});
 	}, []);
 
-	const castVote = (newPoints) => {
-		const updatedUser = {
-			...user,
-			points: newPoints,
-			hasVoted: true
-		}
-		setUser(updatedUser);
-		if (UpdateUserPoints(updatedUser)) {
-			setNotify({
-				isOpen: true,
-				type: 'success',
-				message: 'Your vote has been recorded'
-			})
-		}
+	const handleForfeit = () => {
+		setConfirmDialog({
+			title: 'Are you sure you want to forfeit for this round?',
+			subtitle: "You can still cast your vote after this.",
+			isOpen: true,
+			icon: <FlagIcon />,
+			iconColor: '#d32f2f',
+			buttonColor: 'error',
+			onConfirm: () => forfeitUser()
+		})
 	}
 
-	const revealSession = () => {
-		setIsSessionRevealed(true);
-		RevealSession();
-	}
+	const handleReveal = () => {
+		setConfirmDialog({
+			title: 'Are you sure you want to reveal the points?',
+			subtitle: "The points will be visible to all users.",
+			isOpen: true,
+			icon: <VisibilityIcon />,
+			iconColor: '#1976D2',
+			buttonColor: 'primary',
+			onConfirm: () => revealSession()
+		})
+	};
 
 	const handleReset = () => {
 		setConfirmDialog({
@@ -210,6 +214,45 @@ export default function Voting({ signalRConnection }) {
 		})
 	};
 
+	const castVote = (newPoints) => {
+		const updatedUser = {
+			...user,
+			points: newPoints,
+			hasVoted: true,
+			hasForfeited: false
+		}
+		setUser(updatedUser);
+		if (UpdateUserPoints(updatedUser)) {
+			setNotify({
+				isOpen: true,
+				type: 'success',
+				message: 'Your vote has been recorded'
+			})
+		}
+	}
+
+	const forfeitUser = () => {
+		const updatedUser = {
+			...user,
+			hasVoted: false,
+			hasForfeited: true,
+			points: 0
+		}
+		setUser(updatedUser);
+		if (ForfeitUser(updatedUser)) {
+			setNotify({
+				isOpen: true,
+				type: 'success',
+				message: 'You have forfeited successfully.'
+			})
+		}
+	}
+	
+	const revealSession = () => {
+		setIsSessionRevealed(true);
+		RevealSession();
+	}
+
 	const endSession = () => {
 		EndSession();
 		localStorage.removeItem('username', username);
@@ -222,12 +265,16 @@ export default function Voting({ signalRConnection }) {
 		navigate('/');
 	}
 
-	const calculateAveragePoints = (records) => {
-		if (records.length === 0) {
+	const calculateAverage = (records) => {
+		const votedRecords = records.filter(user => user.hasVoted);
+
+		if (votedRecords.length === 0) {
 			return 0; // Default to 0 if there are no records
 		}
 
-		const totalPoints = records.reduce((acc, user) => acc + user.points, 0);
+		console.log(votedRecords.length)
+
+		const totalPoints = votedRecords.reduce((acc, user) => acc + user.points, 0);
 		const average = totalPoints / records.length;
 
 		// Round the average to two decimal places
@@ -240,16 +287,18 @@ export default function Voting({ signalRConnection }) {
 				<Paper elevation={3} sx={{ width: '80%' }}>
 					<Toolbar sx={{ justifyContent: 'space-between' }}>
 						<Typography variant="h6" component="div">Voting List</Typography>
-						{/* <Button 
-							variant="contained"
-							color="success"
-							startIcon={<AddCircleOutlineIcon />}
-							onClick={handleVote}
-							disabled={user.hasVoted}
-						>
-							Cast Vote
-						</Button> */}
-						<DropdownButton setConfirmDialog={setConfirmDialog} castVote={castVote} disabled={isSessionRevealed} />
+						<Box sx={{ display: 'flex', gap: 2 }}>
+							<Button 
+								variant="contained"
+								color="error"
+								startIcon={<FlagIcon />}
+								onClick={handleForfeit}
+								disabled={user.hasForfeited || isSessionRevealed}
+							>
+								Forfeit
+							</Button>
+							<DropdownButton setConfirmDialog={setConfirmDialog} castVote={castVote} disabled={isSessionRevealed} />
+						</Box>
 					</Toolbar>
 
 					<Box sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -268,11 +317,11 @@ export default function Voting({ signalRConnection }) {
 										<TableCell>{index + 1}</TableCell>
 										<TableCell>{user.name}</TableCell>
 										<TableCell style={{ display: 'flex', justifyContent: 'center' }}>
-											<div className={classes.votedCell} style={{ backgroundColor: user.hasVoted ? 'green' : 'orange' }}>
-												{user.hasVoted ? 'Voted' : 'Not Voted'}
+											<div className={classes.votedCell} style={{ backgroundColor: user.hasForfeited ? 'red' : (user.hasVoted ? 'green' : 'orange')}}>
+												{user.hasForfeited ? 'Forfeited' : (user.hasVoted ? 'Voted' : 'Not Voted')}
 											</div>
 										</TableCell>
-										<TableCell>{isSessionRevealed ? user.points : '*'}</TableCell>
+										<TableCell>{isSessionRevealed ? (user.hasVoted ? user.points : '-') : '*'}</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -283,7 +332,7 @@ export default function Voting({ signalRConnection }) {
 									</TableCell>
 									<TableCell>
 										{/* Calculate and display the average points here */}
-										{isSessionRevealed ? calculateAveragePoints(records) : '*'}
+										{isSessionRevealed ? calculateAverage(records) : '*'}
 									</TableCell>
 								</TableRow>
 							</TableFooter>
@@ -316,7 +365,7 @@ export default function Voting({ signalRConnection }) {
 								<Button
 									variant="outlined"
 									startIcon={<VisibilityIcon />}
-									onClick={revealSession}
+									onClick={handleReveal}
 								>
 									Reveal Points
 								</Button>

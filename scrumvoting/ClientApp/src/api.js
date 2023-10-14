@@ -35,16 +35,23 @@ export const RevealSession = async () => {
     }
 }
 
+export const ForfeitUser = async (user) => {
+    const endpoint = `${apiUrl}/session/users/forfeit/${user.name}`;
+
+    try {
+        const response = await axios.post(endpoint);
+        return response.data;
+    } catch (error) {
+        console.log(error);
+    }
+}
+
 export const GetUser = async (username) => {
     const endpoint = `${apiUrl}/session/users/${username}`;
 
     try {
         const response = await axios.get(endpoint);
         return response.data;
-        // if (user)
-        //     setUser(user);
-        // else
-        //     navigate('/');
     } catch (error) {
         console.log(error);
     }

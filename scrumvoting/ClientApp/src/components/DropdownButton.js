@@ -11,7 +11,7 @@ const useStyles = makeStyles(theme => ({
 	},
 }))
 
-const options = [0.5, 1, 2, 3, 5, 8, 13, 21];
+const options = [0, 0.5, 1, 2, 3, 5, 8, 13, 21];
 
 export default function DropdownButton({ setConfirmDialog, castVote, ...other }) {
     const classes = useStyles();
