@@ -8,6 +8,8 @@ import { useEffect } from "react";
 import * as signalR from "@microsoft/signalr";
 import Home from './components/Home';
 import Voting from './components/Voting';
+import ConfirmDialog from './components/ConfirmDialog';
+import Notification from './components/Notification';
 
 export default class App extends Component {
 	static displayName = App.name;
@@ -27,6 +29,12 @@ function AppPage() {
 
 	const [isReady, setIsReady] = useState(false);
 	const [signalRConnection, setSignalRConnection] = useState(null);
+	const [notify, setNotify] = useState({
+		isOpen: false, type: '', message: ''
+	})
+	const [confirmDialog, setConfirmDialog] = useState({
+		isOpen: false, title: '', subtitle: '', icon: null, iconColor: '', buttonColor: ''
+	})
 
 	useEffect(() => {
 		const initializeConnection = async () => {
@@ -39,7 +47,6 @@ function AppPage() {
 
 		
 		const storedUsername = localStorage.getItem('username');
-
 		if (storedUsername) {
 			navigate(`/voting?username=${storedUsername}`);
 		}
@@ -49,7 +56,7 @@ function AppPage() {
 				signalRConnection.stop();
 			}
         };
-	}, [hubUrl, navigate]);
+	}, [hubUrl]);
 
 	const initializeSignalR = async (hubUrl) => {
 		const connection = new signalR.HubConnectionBuilder()
@@ -73,10 +80,26 @@ function AppPage() {
 				<Layout>
 					{isReady && (
 						<Routes>
-							<Route path='/' element={<Home signalRConnection={signalRConnection} />} />
-							<Route path='/voting' element={<Voting signalRConnection={signalRConnection} />} />
+							<Route 
+								path='/' 
+								element={<Home signalRConnection={signalRConnection} setConfirmDialog={setConfirmDialog} />} 
+							/>
+							<Route 
+								path='/voting'
+								element={<Voting signalRConnection={signalRConnection} setNotify={setNotify} setConfirmDialog={setConfirmDialog} />} 
+							/>
 						</Routes>
 					)}
+					
+					<Notification
+						notify={notify}
+						setNotify={setNotify}
+					/>
+					
+					<ConfirmDialog
+						confirmDialog={confirmDialog}
+						setConfirmDialog={setConfirmDialog}
+					/>
 				</Layout>
 			</ThemeProvider>
 		</>

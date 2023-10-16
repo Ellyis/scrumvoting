@@ -2,10 +2,8 @@ import { Box, Button, Paper, Table, TableBody, TableCell, TableFooter, TableHead
 import { makeStyles } from "@mui/styles";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import ConfirmDialog from "./ConfirmDialog";
 import ReportIcon from '@mui/icons-material/Report';
 import { EndSession, GetRecords, GetIsSessionRevealed, GetUser, LeaveSession, ResetUserPoints, UpdateUserPoints, RevealSession, ForfeitUser } from "../api";
-import Notification from "./Notification";
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -56,7 +54,7 @@ const useStyles = makeStyles(theme => ({
 	},
 }))
 
-export default function Voting({ signalRConnection }) {
+export default function Voting({ signalRConnection, setNotify, setConfirmDialog }) {
 	const classes = useStyles();
 	const navigate = useNavigate();
 	
@@ -71,12 +69,6 @@ export default function Voting({ signalRConnection }) {
 	const [lowerBound, setLowerBound] = useState(0);
 	const [user, setUser] = useState({});
 	const [isSessionRevealed, setIsSessionRevealed] = useState(false);
-	const [notify, setNotify] = useState({
-		isOpen: false, type: '', message: ''
-	})
-	const [confirmDialog, setConfirmDialog] = useState({
-		isOpen: false, title: '', subtitle: '', icon: null, iconColor: '', buttonColor: ''
-	})
 	
 	useEffect(() => {
 		if (user.isAdmin) {
@@ -124,7 +116,7 @@ export default function Voting({ signalRConnection }) {
 				setNotify({
 					isOpen: true,
 					type: 'success',
-					message: `${name} has joined the session`
+					message: `${name} has joined the session.`
 				})
 			}
 		});
@@ -134,7 +126,7 @@ export default function Voting({ signalRConnection }) {
 				setNotify({
 					isOpen: true,
 					type: 'error',
-					message: `${name} has left the session`
+					message: `${name} has left the session.`
 				})
 			}
 		});
@@ -154,18 +146,24 @@ export default function Voting({ signalRConnection }) {
 			setNotify({
 				isOpen: true,
 				type: 'warning',
-				message: 'The session has been reset'
+				message: 'The session has been reset.'
 			})
 		});
 		
 		signalRConnection.on("ReceiveSessionExists", (sessionExists) => {
 			// Redirect users back to the home page if session has ended
 			if (sessionExists === false) {
-				navigate('/');
 				localStorage.removeItem('username');
+				navigate('/');
+				
+				setNotify({
+					isOpen: true,
+					type: 'error',
+					message: 'The session has ended.'
+				})
 			}
 		});
-	}, [navigate, signalRConnection, username]);
+	}, []);
 	
 	const handleForfeit = () => {
 		setConfirmDialog({
@@ -256,7 +254,7 @@ export default function Voting({ signalRConnection }) {
 			setNotify({
 				isOpen: true,
 				type: 'success',
-				message: 'You have forfeited successfully.'
+				message: 'You have forfeited for this round.'
 			})
 		}
 	}
@@ -293,7 +291,6 @@ export default function Voting({ signalRConnection }) {
 	}
 	
 	const calculateUpperAndLowerBounds = (average, records) => {
-		console.log(average);
 		const squaredDifferences = records
 			.filter(user => user.hasVoted)
 			.map(user => Math.pow(user.points - average, 2));
@@ -422,16 +419,6 @@ export default function Voting({ signalRConnection }) {
 					
 				</Box>
 			</Box>
-			
-			<Notification 
-				notify={notify}
-				setNotify={setNotify}
-			/>
-			
-			<ConfirmDialog
-				confirmDialog={confirmDialog}
-				setConfirmDialog={setConfirmDialog}
-			/>
 		</>
 	)
 }
