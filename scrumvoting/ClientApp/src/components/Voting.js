@@ -351,7 +351,15 @@ export default function Voting({ signalRConnection }) {
 												{user.hasForfeited ? 'Forfeited' : (user.hasVoted ? 'Voted' : 'Not Voted')}
 											</div>
 										</TableCell>
-										<TableCell>{isSessionRevealed ? (user.hasVoted ? user.points : '-') : '*'}</TableCell>
+											{user.name === username ? (
+												<TableCell>
+													{user.hasVoted ? user.points : (user.hasForfeited || isSessionRevealed) ? '-' : '*'}
+												</TableCell>
+											) : (
+												<TableCell>
+													{isSessionRevealed ? (user.hasVoted ? user.points : '-') : '*'}
+												</TableCell>
+											)}
 									</TableRow>
 								))}
 							</TableBody>
@@ -361,7 +369,6 @@ export default function Voting({ signalRConnection }) {
 										Average
 									</TableCell>
 									<TableCell>
-										{/* Calculate and display the average points here */}
 										{isSessionRevealed ? average : '*'}
 									</TableCell>
 								</TableRow>

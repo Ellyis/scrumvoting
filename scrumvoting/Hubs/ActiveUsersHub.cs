@@ -51,7 +51,10 @@ namespace scrumvoting.Hubs
                     // When the session ends, destroy the timer
                     sessionTimer?.Change(Timeout.Infinite, Timeout.Infinite);
                     sessionTimer?.Dispose();
-                    sessionTimer = null;
+                    if (sessionTimer != null)
+                    {
+                        sessionTimer = null;
+                    }
                 }
             }
         }

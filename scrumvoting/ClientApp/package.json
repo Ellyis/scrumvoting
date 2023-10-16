@@ -1,7 +1,7 @@
 {
   "name": "scrumvoting",
   "version": "0.1.0",
-  "homepage": "/scrumvoting_v2",
+  "homepage": "/scrumvoting",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.1",

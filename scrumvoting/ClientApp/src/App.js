@@ -49,7 +49,7 @@ function AppPage() {
 				signalRConnection.stop();
 			}
         };
-	}, []);
+	}, [hubUrl, navigate]);
 
 	const initializeSignalR = async (hubUrl) => {
 		const connection = new signalR.HubConnectionBuilder()
