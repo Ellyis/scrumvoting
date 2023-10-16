@@ -44,7 +44,7 @@ namespace scrumvoting.Hubs
             {
                 // End the session if the admin has disconnected over a set amount of time
                 var elapsedSeconds = (DateTime.UtcNow - adminDisconnectedTimestamp.Value).TotalSeconds;
-                if (elapsedSeconds > 30)
+                if (elapsedSeconds >= 20)
                 {
                     _sessionController.EndSession();
 

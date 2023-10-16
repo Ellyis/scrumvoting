@@ -59,13 +59,16 @@ const useStyles = makeStyles(theme => ({
 export default function Voting({ signalRConnection }) {
 	const classes = useStyles();
 	const navigate = useNavigate();
-
+	
 	const location = useLocation();
 	const searchParams = new URLSearchParams(location.search);
 	const username = searchParams.get('username');
 	const connectionId = signalRConnection.connection.connectionId;
-
+	
 	const [records, setRecords] = useState([]);
+	const [average, setAverage] = useState(0);
+	const [upperBound, setUpperBound] = useState(0);
+	const [lowerBound, setLowerBound] = useState(0);
 	const [user, setUser] = useState({});
 	const [isSessionRevealed, setIsSessionRevealed] = useState(false);
 	const [notify, setNotify] = useState({
@@ -74,13 +77,22 @@ export default function Voting({ signalRConnection }) {
 	const [confirmDialog, setConfirmDialog] = useState({
 		isOpen: false, title: '', subtitle: '', icon: null, iconColor: '', buttonColor: ''
 	})
-
+	
 	useEffect(() => {
 		if (user.isAdmin) {
 			signalRConnection.invoke("SetAdminConnected", connectionId);
 		}
-	}, [user])
+	}, [connectionId, signalRConnection, user])
 
+	useEffect(() => {
+		const avg = calculateAverage(records);
+		const { upperLimit, lowerLimit } = calculateUpperAndLowerBounds(avg, records);
+		
+		setAverage(avg);
+		setUpperBound(upperLimit);
+		setLowerBound(lowerLimit);
+	}, [isSessionRevealed, records])
+	
 	useEffect(() => {
 		const fetchData = async () => {
 			try {
@@ -89,8 +101,8 @@ export default function Voting({ signalRConnection }) {
 					GetRecords(),
 					GetUser(username)
 				]);
-				setIsSessionRevealed(isRevealed);
 				setRecords(records);
+				setIsSessionRevealed(isRevealed);
 				if (user) {
 					setUser(user);
 				} else {
@@ -100,12 +112,13 @@ export default function Voting({ signalRConnection }) {
 				console.log(error);
 			}
 		};
-		fetchData();		
-
+		fetchData();
+		
+		
 		signalRConnection.on("ReceiveActiveUsers", (activeUsers) => {
 			setRecords(activeUsers);
 		});
-
+		
 		signalRConnection.on("ReceiveNewUser", (name) => {
 			if (name !== username) {
 				setNotify({
@@ -115,7 +128,7 @@ export default function Voting({ signalRConnection }) {
 				})
 			}
 		});
-
+		
 		signalRConnection.on("ReceiveLeftUser", (name) => {
 			if (name !== username) {
 				setNotify({
@@ -125,11 +138,11 @@ export default function Voting({ signalRConnection }) {
 				})
 			}
 		});
-
-		signalRConnection.on('ReceiveIsRevealed', (isRevealed) => {
-			setIsSessionRevealed(isRevealed);
+		
+		signalRConnection.on('ReceiveIsRevealed', () => {
+			setIsSessionRevealed(true);
 		});
-
+		
 		signalRConnection.on("ReceiveVotesReset", (activeUsers) => {
 			setRecords(activeUsers);
 			setIsSessionRevealed(false);
@@ -144,7 +157,7 @@ export default function Voting({ signalRConnection }) {
 				message: 'The session has been reset'
 			})
 		});
-
+		
 		signalRConnection.on("ReceiveSessionExists", (sessionExists) => {
 			// Redirect users back to the home page if session has ended
 			if (sessionExists === false) {
@@ -152,8 +165,8 @@ export default function Voting({ signalRConnection }) {
 				localStorage.removeItem('username');
 			}
 		});
-	}, []);
-
+	}, [navigate, signalRConnection, username]);
+	
 	const handleForfeit = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to forfeit for this round?',
@@ -165,7 +178,7 @@ export default function Voting({ signalRConnection }) {
 			onConfirm: () => forfeitUser()
 		})
 	}
-
+	
 	const handleReveal = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to reveal the points?',
@@ -177,7 +190,7 @@ export default function Voting({ signalRConnection }) {
 			onConfirm: () => revealSession()
 		})
 	};
-
+	
 	const handleReset = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to reset all votes?',
@@ -189,7 +202,7 @@ export default function Voting({ signalRConnection }) {
 			onConfirm: () => ResetUserPoints()
 		})
 	};
-
+	
 	const handleEndSession = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to end this session?',
@@ -201,7 +214,7 @@ export default function Voting({ signalRConnection }) {
 			onConfirm: () => endSession()
 		})
 	};
-
+	
 	const handleLeaveSession = () => {
 		setConfirmDialog({
 			title: 'Are you sure you want to leave this session?',
@@ -213,7 +226,7 @@ export default function Voting({ signalRConnection }) {
 			onConfirm: () => leaveSession(username)
 		})
 	};
-
+	
 	const castVote = (newPoints) => {
 		const updatedUser = {
 			...user,
@@ -230,7 +243,7 @@ export default function Voting({ signalRConnection }) {
 			})
 		}
 	}
-
+	
 	const forfeitUser = () => {
 		const updatedUser = {
 			...user,
@@ -248,39 +261,53 @@ export default function Voting({ signalRConnection }) {
 		}
 	}
 	
-	const revealSession = () => {
+	const revealSession = () => {		
 		setIsSessionRevealed(true);
 		RevealSession();
 	}
-
+	
 	const endSession = () => {
 		EndSession();
 		localStorage.removeItem('username', username);
 	}
-
+	
 	const leaveSession = async (username) => {
 		await LeaveSession(username);
-
+		
 		localStorage.removeItem('username', username);
 		navigate('/');
 	}
-
+	
 	const calculateAverage = (records) => {
 		const votedRecords = records.filter(user => user.hasVoted);
-
+		
 		if (votedRecords.length === 0) {
 			return 0; // Default to 0 if there are no records
 		}
-
-		console.log(votedRecords.length)
-
+		
 		const totalPoints = votedRecords.reduce((acc, user) => acc + user.points, 0);
-		const average = totalPoints / records.length;
-
+		const average = totalPoints / votedRecords.length;
+		
 		// Round the average to two decimal places
 		return parseFloat(average.toFixed(2));
 	}
-
+	
+	const calculateUpperAndLowerBounds = (average, records) => {
+		console.log(average);
+		const squaredDifferences = records
+			.filter(user => user.hasVoted)
+			.map(user => Math.pow(user.points - average, 2));
+			
+		const variance = squaredDifferences.reduce((acc, squaredDiff) => acc + squaredDiff, 0) / squaredDifferences.length;
+		const standardDeviation = Math.sqrt(variance);
+		
+		// Calculate the 1 sigma bounds
+		const upperLimit = average + 1 * standardDeviation;
+		const lowerLimit = average - 1 * standardDeviation;
+		
+		return { upperLimit, lowerLimit }
+	};
+	
 	return (
 		<>
 			<Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
@@ -300,7 +327,7 @@ export default function Voting({ signalRConnection }) {
 							<DropdownButton setConfirmDialog={setConfirmDialog} castVote={castVote} disabled={isSessionRevealed} />
 						</Box>
 					</Toolbar>
-
+					
 					<Box sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
 						<Table className={classes.table}>
 							<TableHead>
@@ -313,7 +340,10 @@ export default function Voting({ signalRConnection }) {
 							</TableHead>
 							<TableBody>
 								{records.map((user, index) => (
-									<TableRow key={index}>
+									<TableRow key={index} style={{ 
+										backgroundColor: isSessionRevealed && user.hasVoted && (user.points < lowerBound || user.points > upperBound)
+											&& '#FFCCCB'
+									}}>
 										<TableCell>{index + 1}</TableCell>
 										<TableCell>{user.name}</TableCell>
 										<TableCell style={{ display: 'flex', justifyContent: 'center' }}>
@@ -332,7 +362,7 @@ export default function Voting({ signalRConnection }) {
 									</TableCell>
 									<TableCell>
 										{/* Calculate and display the average points here */}
-										{isSessionRevealed ? calculateAverage(records) : '*'}
+										{isSessionRevealed ? average : '*'}
 									</TableCell>
 								</TableRow>
 							</TableFooter>
@@ -340,7 +370,7 @@ export default function Voting({ signalRConnection }) {
 					</Box>
 				</Paper>
 			</Box>
-
+			
 			<Box sx={{ display: 'flex', justifyContent: 'center' }}>
 				<Box style={{ width: '80%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', margin: '1rem' }}>
 					{user.isAdmin ? (
@@ -385,12 +415,12 @@ export default function Voting({ signalRConnection }) {
 					
 				</Box>
 			</Box>
-
+			
 			<Notification 
 				notify={notify}
 				setNotify={setNotify}
 			/>
-
+			
 			<ConfirmDialog
 				confirmDialog={confirmDialog}
 				setConfirmDialog={setConfirmDialog}

@@ -38,10 +38,10 @@ namespace scrumvoting.Controllers
         {
             _session.IsRevealed = true;
 
-            // Notify all clients about the updated toggls show value
-            _hubContext.Clients.All.SendAsync("ReceiveIsRevealed", true);
+            // Notify all clients about the reveal
+            _hubContext.Clients.All.SendAsync("ReceiveIsRevealed");
 
-            return Ok("Toggle show updated");
+            return Ok("Session is revealed");
         }
 
         [HttpPost("users/forfeit/{username}")]
@@ -138,6 +138,7 @@ namespace scrumvoting.Controllers
 
             // Set the flag to indicate an inactive session
             _session.IsActive = false;
+            _session.IsRevealed = false;
 
             // Notify all clients that the session has ended
             _hubContext.Clients.All.SendAsync("ReceiveSessionExists", false);
