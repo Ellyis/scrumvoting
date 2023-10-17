@@ -17,16 +17,6 @@ namespace scrumvoting.Hubs
             _sessionController = sessionController;
         }
 
-        public void SetAdminConnected(string connectionId)
-        {
-            adminConnectionId = connectionId;
-            adminDisconnectedTimestamp = null;
-
-            // Start a background task to periodically check the adminDisconnectedTimestamp
-            sessionTimer = new Timer(CheckAdminInactive, null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
-
-        }
-
         public override async Task OnDisconnectedAsync(Exception exception)
         {
             if (Context.ConnectionId == adminConnectionId)
@@ -36,6 +26,16 @@ namespace scrumvoting.Hubs
             }
 
             await base.OnDisconnectedAsync(exception);
+        }
+
+        public void SetAdminConnected(string connectionId)
+        {
+            adminConnectionId = connectionId;
+            adminDisconnectedTimestamp = null;
+
+            // Start a background task to periodically check the adminDisconnectedTimestamp
+            sessionTimer = new Timer(CheckAdminInactive, null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
+
         }
 
         private void CheckAdminInactive(object state)

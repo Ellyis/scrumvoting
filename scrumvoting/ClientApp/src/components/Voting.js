@@ -300,9 +300,9 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 		const variance = squaredDifferences.reduce((acc, squaredDiff) => acc + squaredDiff, 0) / squaredDifferences.length;
 		const standardDeviation = Math.sqrt(variance);
 		
-		// Calculate the 1 sigma bounds
-		const upperLimit = average + 1 * standardDeviation;
-		const lowerLimit = average - 1 * standardDeviation;
+		// Calculate the 2 sigma bounds
+		const upperLimit = average + 2 * standardDeviation;
+		const lowerLimit = average - 2 * standardDeviation;
 		
 		return { upperLimit, lowerLimit }
 	};
@@ -346,7 +346,7 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 										<TableCell>{index + 1}</TableCell>
 										<TableCell>
 											<span style={{ marginRight: '0.5rem' }}>
-												{user.name}
+												{user.name === username ? user.name + ' (You)' : user.name}
 											</span>
 											{user.isAdmin && (
 												<FontAwesomeIcon icon={faCrown} style={{ color: "#ffc02e" }} />
