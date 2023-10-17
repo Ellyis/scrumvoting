@@ -9,6 +9,8 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import FlagIcon from '@mui/icons-material/Flag';
 import DropdownButton from "./DropdownButton";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCrown } from '@fortawesome/fontawesome-free-solid'
 
 const useStyles = makeStyles(theme => ({
 	table: {
@@ -342,7 +344,14 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 											&& '#FFCCCB'
 									}}>
 										<TableCell>{index + 1}</TableCell>
-										<TableCell>{user.name}</TableCell>
+										<TableCell>
+											<span style={{ marginRight: '0.5rem' }}>
+												{user.name}
+											</span>
+											{user.isAdmin && (
+												<FontAwesomeIcon icon={faCrown} style={{ color: "#ffc02e" }} />
+											)}
+										</TableCell>
 										<TableCell style={{ display: 'flex', justifyContent: 'center' }}>
 											<div className={classes.votedCell} style={{ backgroundColor: user.hasForfeited ? 'red' : (user.hasVoted ? 'green' : 'orange')}}>
 												{user.hasForfeited ? 'Forfeited' : (user.hasVoted ? 'Voted' : 'Not Voted')}
