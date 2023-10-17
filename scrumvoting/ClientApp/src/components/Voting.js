@@ -313,7 +313,7 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 						<Typography variant="h6" component="div">Voting List</Typography>
 						<Box sx={{ display: 'flex', gap: 2 }}>
 							<Button 
-								variant="contained"
+								variant="outlined"
 								color="error"
 								startIcon={<FlagIcon />}
 								onClick={handleForfeit}
@@ -397,7 +397,7 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 								</Button>
 							) : (
 								<Button
-									variant="outlined"
+									variant="contained"
 									startIcon={<VisibilityIcon />}
 									onClick={handleReveal}
 								>
