@@ -97,7 +97,9 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 				]);
 				setRecords(records);
 				setIsSessionRevealed(isRevealed);
-				if (user) {
+				
+				// Prevent user from signing in as other existing users via URL param
+				if (user && username === localStorage.getItem('username')) {
 					setUser(user);
 				} else {
 					navigate('/')
