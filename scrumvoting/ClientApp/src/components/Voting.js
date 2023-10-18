@@ -43,6 +43,9 @@ const useStyles = makeStyles(theme => ({
 			color: '#333996',
 			backgroundColor: '#3c44b126',
 			padding: '18px'
+		},
+		'& tbody .MuiTableRow-root:hover': {
+			backgroundColor: '#ebeff5'
 		}
 	},
 	votedCell: {
@@ -341,7 +344,7 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 							</TableHead>
 							<TableBody>
 								{records.map((user, index) => (
-									<TableRow key={index} style={{ 
+									<TableRow hover key={index} style={{ 
 										backgroundColor: isSessionRevealed && user.hasVoted && (user.points < lowerBound || user.points > upperBound)
 											&& '#FFCCCB'
 									}}>
