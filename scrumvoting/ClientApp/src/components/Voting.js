@@ -45,7 +45,7 @@ const useStyles = makeStyles(theme => ({
 			padding: '18px'
 		},
 		'& tbody .MuiTableRow-root:hover': {
-			backgroundColor: '#ebeff5'
+			backgroundColor: '#EFF0F7'
 		}
 	},
 	votedCell: {
