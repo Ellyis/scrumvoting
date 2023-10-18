@@ -6,15 +6,18 @@ namespace scrumvoting.Hubs
 {
     public class ActiveUsersHub : Hub
     {
+        private IConfiguration _configuration;
+
         // Inject SessionController as a singleton service
         private SessionController _sessionController;
         private static string? adminConnectionId;
         private static DateTime? adminDisconnectedTimestamp = null;
         private Timer? sessionTimer = null;
 
-        public ActiveUsersHub(SessionController sessionController)
+        public ActiveUsersHub(SessionController sessionController, IConfiguration configuration)
         {
             _sessionController = sessionController;
+            _configuration = configuration;
         }
 
         public override async Task OnDisconnectedAsync(Exception exception)
@@ -44,7 +47,8 @@ namespace scrumvoting.Hubs
             {
                 // End the session if the admin has disconnected over a set amount of time
                 var elapsedSeconds = (DateTime.UtcNow - adminDisconnectedTimestamp.Value).TotalSeconds;
-                if (elapsedSeconds >= 20)
+                var timeoutSeconds = _configuration.GetValue<double>("Settings:AdminInactiveTimeoutInSeconds");
+                if (elapsedSeconds >= timeoutSeconds)
                 {
                     _sessionController.EndSession();
 
