@@ -105,7 +105,8 @@ export default function Voting({ signalRConnection, setNotify, setConfirmDialog 
 				if (user && username === localStorage.getItem('username')) {
 					setUser(user);
 				} else {
-					navigate('/')
+					navigate('/');
+					localStorage.removeItem('username');
 				}
 			} catch (error) {
 				console.log(error);
