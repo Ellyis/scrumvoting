@@ -29,6 +29,7 @@ namespace scrumvoting.Controllers
         public IActionResult GetIsRevealed()
         {
             // Return the boolean value indicating whether show points is toggled on
+            Console.WriteLine(_session.IsRevealed);
             return Ok(_session.IsRevealed);
         }
 
